@@ -24,7 +24,15 @@ _deps
 
 # ESP-IDF
 sdkconfig.old
+firmware/sdkconfig
+migrator/sdkconfig
 managed_components/
+firmware/dependencies.local.lock
+firmware/build-*/
+migrator/build/
+migrator/build-*/
+migrator/blobs/
+migrator/dependencies.local.lock
 
 # Secrets — never commit
 credentials.h
@@ -35,6 +43,7 @@ firmware/http_examples/*.private.env.json
 
 # Firmware images kept for rollback (binaries, not source)
 firmware/releases/
+releases/
 server/secrets.env
 server/migrate/out/
 __pycache__/

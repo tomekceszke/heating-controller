@@ -1,8 +1,13 @@
-### Read sensor
+### Read one sensor (unauthenticated, what the ulanzi display polls)
 GET http://{{host}}/sensor?sensor_id={{sensor_id}}
 
-### GET HW Status
+### Hardware status (unauthenticated)
 GET http://{{host}}/admin/hw-status
+Connection: close
+
+### Full status, same body as /api/status
+GET http://{{host}}/admin/status
+Authorization: {{auth}}
 Connection: close
 
 ### Trigger OTA update
@@ -14,6 +19,15 @@ Connection: close
 
 ### Reboot
 POST http://{{host}}/admin/reboot
+Authorization: {{auth}}
+
+1
+
+### Migrator checks (only while the one-shot migrator runs, see docs/IDF5_MIGRATION.md)
+GET http://{{host}}/migrator
+
+### Migrator commit: WRITES THE PARTITION TABLE AND BOOTLOADER
+POST http://{{host}}/migrator/commit
 Authorization: {{auth}}
 
 1

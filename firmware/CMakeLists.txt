@@ -1,6 +1,12 @@
-# The following lines of boilerplate have to be in your project's
-# CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
-set(CMAKE_POLICY_DEFAULT_CMP0111 OLD)
+set(PROJECT_VER "2.0.0")
+# HOME_IDF_LOCAL=<checkout>: build against a local home-idf instead of the pinned git tag, with a separate lock
+# file so the committed dependencies.lock stays pinned (build.sh sets it when ../../home-idf exists)
+if(DEFINED ENV{HOME_IDF_LOCAL})
+    set(EXTRA_COMPONENT_DIRS $ENV{HOME_IDF_LOCAL})
+endif()
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+if(DEFINED ENV{HOME_IDF_LOCAL})
+    idf_build_set_property(DEPENDENCIES_LOCK ${CMAKE_CURRENT_LIST_DIR}/dependencies.local.lock)
+endif()
 project(heating-controller)

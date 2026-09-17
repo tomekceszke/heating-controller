@@ -1,11 +1,12 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <esp_log.h>
-#include <esp_mac.h>
 #include "mqtt_client.h"
 
 #include "config/config.h"
 #include "config/credentials.h"
+#include "device.h"
+#include "events.h"
 #include "metrics.h"
 
 /*
@@ -16,13 +17,12 @@
 
 static const char *TAG = "METRICS";
 
-#define DEVICE_ID_LEN 13    // 12 hex chars (STA MAC) + NUL
 #define TOPIC_MAX_LEN 64
 
 static esp_mqtt_client_handle_t s_client = NULL;
-static char s_device_id[DEVICE_ID_LEN];
-static char s_client_id[DEVICE_ID_LEN + 3];
+static char s_client_id[16];
 static char s_status_topic[TOPIC_MAX_LEN];
+static volatile bool s_connected = false;
 
 static void on_mqtt_event(void *arg, esp_event_base_t base, int32_t event_id, void *event_data)
 {
@@ -30,10 +30,14 @@ static void on_mqtt_event(void *arg, esp_event_base_t base, int32_t event_id, vo
     switch ((esp_mqtt_event_id_t) event_id) {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "MQTT connected, %d bytes queued", esp_mqtt_client_get_outbox_size(s_client));
+        s_connected = true;
         esp_mqtt_client_enqueue(s_client, s_status_topic, "online", 0, 1, 1, true);
+        events_publish(&(event_t) {.type = EV_MQTT, .mono_s = events_mono_s(), .on = true});
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGW(TAG, "MQTT disconnected");
+        s_connected = false;
+        events_publish(&(event_t) {.type = EV_MQTT, .mono_s = events_mono_s(), .on = false});
         break;
     case MQTT_EVENT_ERROR:
         if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
@@ -48,21 +52,17 @@ static void on_mqtt_event(void *arg, esp_event_base_t base, int32_t event_id, vo
     }
 }
 
-void metrics_start(void)
+void metrics_start(const char *password)
 {
-    uint8_t mac[6];
-    ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    snprintf(s_device_id, sizeof(s_device_id), "%02x%02x%02x%02x%02x%02x",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    snprintf(s_client_id, sizeof(s_client_id), "hc-%s", s_device_id);
-    snprintf(s_status_topic, sizeof(s_status_topic), MQTT_TOPIC_PREFIX "/%s/status", s_device_id);
+    snprintf(s_client_id, sizeof(s_client_id), "hc-%s", device_mac_hex());
+    snprintf(s_status_topic, sizeof(s_status_topic), MQTT_TOPIC_PREFIX "/%s/status", device_mac_hex());
 
     const esp_mqtt_client_config_t config = {
         .broker.address.uri = MQTT_BROKER_URI,
         .credentials = {
             .username = MQTT_USER,
             .client_id = s_client_id,
-            .authentication.password = MQTT_PASS,
+            .authentication.password = password,
         },
         .session.last_will = {
             .topic = s_status_topic,
@@ -96,13 +96,20 @@ void metrics_publish(uint32_t timestamp, const char *sensor_id, float value)
     }
     char topic[TOPIC_MAX_LEN];
     char payload[48];
-    snprintf(topic, sizeof(topic), MQTT_TOPIC_PREFIX "/%s/temp/%s", s_device_id, sensor_id);
+    snprintf(topic, sizeof(topic), MQTT_TOPIC_PREFIX "/%s/temp/%s", device_mac_hex(), sensor_id);
     snprintf(payload, sizeof(payload), "{\"ts\":%" PRIu32 ",\"value\":%.4f}", timestamp, value);
 
     int msg_id = esp_mqtt_client_enqueue(s_client, topic, payload, 0, 1, 0, true);
     if (msg_id == -2) {
         ESP_LOGW(TAG, "Outbox full (%d bytes), dropping %s", esp_mqtt_client_get_outbox_size(s_client), sensor_id);
+        events_publish(&(event_t) {.type = EV_OUTBOX_FULL, .mono_s = events_mono_s()});
     } else if (msg_id < 0) {
         ESP_LOGE(TAG, "Enqueue failed, dropping %s", sensor_id);
     }
+}
+
+void metrics_state(bool *connected, int *outbox_bytes)
+{
+    *connected = s_connected;
+    *outbox_bytes = s_client != NULL ? esp_mqtt_client_get_outbox_size(s_client) : 0;
 }

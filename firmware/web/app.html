@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#151311">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="@HI_APP_NAME@">
+<link rel="icon" href="/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>@HI_APP_NAME@</title>
+<style>
+@HI_APP_CSS@
+:root {
+  --bg: #151311; --panel: #221f1b; --line: #3f382f; --text: #f2ece4; --muted: #a89d90;
+  --accent: #e8604c; --on-accent: #17100e; --warn: #e9c046; --bad: #ff5e57; --ok: #6cc08b;
+  --cold: #6fa8c7;
+}
+
+/* Main view: one row per circuit, supply -> return with the drop across it */
+.circuits { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.circuit { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px;
+  padding: 9px 12px; background: var(--panel); border-radius: var(--r-sm); }
+.circuit .cname { grid-column: 1; color: var(--muted); font-size: 13px; }
+.circuit .cdrop { grid-column: 2; grid-row: 1 / span 2; color: var(--text); font: 600 15px var(--round);
+  text-align: right; min-width: 56px; }
+.circuit .cdrop small { display: block; color: var(--muted); font: 11px var(--font); }
+.cflow { grid-column: 1; display: flex; align-items: center; gap: 8px; }
+.cflow .t { font: 600 17px var(--round); color: var(--text); }
+.cflow .t.stale { color: var(--muted); }
+.cflow .t.lost { color: var(--bad); }
+.cflow .pipe { flex: 1; min-width: 24px; height: 6px; border-radius: 3px; position: relative;
+  background: linear-gradient(90deg, var(--accent), var(--cold)); opacity: .55; }
+.circuit.single .cflow .pipe { display: none; }
+.circuit.outdoor { background: color-mix(in srgb, var(--panel) 65%, transparent); }
+.circuit.outdoor .cflow .t { color: var(--cold); }
+
+/* 24 h chart, one line per sensor */
+.chart { display: block; width: 100%; height: auto; margin: 4px 0 6px; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .line { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
+.chart text { fill: var(--muted); font: 11px var(--font); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.legend button { background: none; border: 0; padding: 2px 0; color: var(--muted); font: 13px var(--font);
+  cursor: pointer; }
+.legend button[aria-pressed="false"] { opacity: .4; }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle;
+  margin-right: 5px; }
+</style>
+</head>
+<body>
+<main>
+  <section id="live" class="tab">
+    <header class="top">@HI_APP_WORDMARK@<span class="pill" id="pill"><span class="dot"></span><span>Connecting</span></span></header>
+    <h1 class="head" id="headline">Connecting…</h1>
+    <div id="banner" class="banner" role="status" hidden></div>
+
+    <div class="stats">
+      <div><span class="num" id="n0">–</span><span class="unit" id="u0"></span></div>
+      <div><span class="num" id="n1">–</span><span class="unit" id="u1"></span></div>
+      <div><span class="num" id="n2">–</span><span class="unit" id="u2"></span></div>
+    </div>
+
+    <div class="circuits main-view" id="circuits"></div>
+
+    <h2 class="sec" id="latestTitle" hidden>Latest <button type="button" class="link" data-goto="history">All</button></h2>
+    <ul class="events" id="latest"></ul>
+  </section>
+
+  <section id="history" class="tab" hidden>
+    <header class="top">@HI_APP_WORDMARK@</header>
+    <h1 class="page">History</h1>
+    <div class="stats">
+      <div><span class="num" id="hSensors">–</span><span class="unit">sensors</span></div>
+      <div><span class="num" id="hSpan">0</span><span class="unit" id="hSpanUnit">h recorded</span></div>
+      <div><span class="num" id="hErrors">0</span><span class="unit">read errors</span></div>
+    </div>
+    <h2 class="sec">Temperatures, 24 h</h2>
+    <svg class="chart" id="chart" viewBox="0 0 360 190" role="img" aria-label="Sensor temperatures over the last 24 hours"></svg>
+    <div class="legend" id="legend"></div>
+    <p class="note" id="chartNote" hidden>No readings yet. The chart fills in one point per minute and starts over after a restart. The full history since 2023 lives in the database on hc-data.</p>
+    <h2 class="sec">Events</h2>
+    <ul class="events" id="events"></ul>
+    <p class="note" id="eventsEmpty" hidden>Nothing has happened since the controller restarted.</p>
+  </section>
+
+  <section id="settings" class="tab" hidden>
+    <header class="top">@HI_APP_WORDMARK@</header>
+    <h1 class="page">Settings</h1>
+
+    <h2 class="sec">Sensors</h2>
+    <ul class="list" id="sensorList"></ul>
+    <p class="note">Sensors are found on the 1-Wire bus at boot; their ids are the keys the readings are stored
+      under, so they never change. A sensor that fails three reads in a row is reported as lost.</p>
+
+    <h2 class="sec">Publishing</h2>
+    <ul class="list" id="mqttList"></ul>
+
+    <h2 class="sec">Device</h2>
+    <ul class="list" id="deviceList"></ul>
+
+    <h2 class="sec">Maintenance</h2>
+    <ul class="list">
+      <li><div class="k">Firmware update<small id="otaText">Installs a new version if one is published</small></div><button class="plain" type="button" id="otaBtn">Check</button></li>
+      <li><div class="k">Restart<small>Sampling resumes within seconds; buffered readings are lost</small></div><button class="plain" type="button" id="rebootBtn">Restart</button></li>
+      <li><div class="k">Sign out</div><button class="plain danger" type="button" id="logoutBtn">Sign out</button></li>
+    </ul>
+  </section>
+</main>
+
+@HI_APP_TABS@
+
+<script>
+"use strict";
+@HI_APP_JS@
+
+let state = null;
+let timer = 0;
+
+const deg = c => c == null ? "–" : c.toFixed(1);
+const degU = c => c == null ? "–" : `${c.toFixed(1)} °C`;
+const stale = s => s.age_s < 0 || s.age_s > 3 * (state ? state.sample_period_s : 60);
+
+const tabs = hi.tabs(name => {
+  if (name === "history") { loadEvents(); loadHistory(); }
+  refresh();
+});
+/* Deep link: /#history and /#settings open that tab (also how tools/preview.py shoots them). */
+const wanted = location.hash.slice(1);
+if (["history", "settings"].includes(wanted)) tabs.show(wanted);
+
+function headline(s) {
+  const total = s.sensors.length;
+  const lost = s.sensors.filter(x => x.lost).length;
+  if (!total) return ["Looking for sensors on the bus", "bad", "No sensors"];
+  if (!s.sensors_alive) return ["Sampling has stalled", "bad", "Stalled"];
+  if (lost === total) return ["No sensor is answering", "bad", "All lost"];
+  if (lost) return [`${total - lost} of ${total} sensors reporting`, "warn", `${lost} lost`];
+  if (!s.mqtt.connected) return [`${total} sensors reporting, buffering`, "warn", "Buffering"];
+  return [`${total} sensors reporting`, "ok", "Live"];
+}
+
+/* One row per circuit: a supply/return pair with the drop, or a single reading. */
+function renderCircuits(s) {
+  const groups = new Map();
+  for (const x of [...s.sensors].sort((a, b) => a.order - b.order)) {
+    if (!groups.has(x.group)) groups.set(x.group, []);
+    groups.get(x.group).push(x);
+  }
+  const root = $("circuits");
+  root.replaceChildren();
+  for (const [name, list] of groups) {
+    const supply = list.find(x => x.dir === "supply");
+    const ret = list.find(x => x.dir === "return");
+    const paired = supply && ret;
+    const row = hi.el("div", `circuit${paired ? "" : " single"}${name === "Outdoor" ? " outdoor" : ""}`);
+    row.append(hi.el("div", "cname", name));
+
+    const flow = hi.el("div", "cflow");
+    for (const x of paired ? [supply, ret] : list) {
+      const t = hi.el("span", `t${x.lost ? " lost" : stale(x) ? " stale" : ""}`,
+                      x.lost ? "lost" : x.c == null ? "–" : `${x.c.toFixed(1)}°`);
+      t.title = `${x.label} (${x.id})`;
+      flow.append(t);
+      if (paired && x === supply) flow.append(hi.el("span", "pipe"));
+    }
+    row.append(flow);
+
+    const drop = hi.el("div", "cdrop");
+    if (paired && supply.c != null && ret.c != null && !supply.lost && !ret.lost) {
+      drop.append(document.createTextNode(`${(supply.c - ret.c).toFixed(1)} K`));
+      drop.append(hi.el("small", "", "drop"));
+    }
+    row.append(drop);
+    root.append(row);
+  }
+}
+
+function renderLive(s) {
+  const [text, kind, pill] = headline(s);
+  $("headline").textContent = text;
+  hi.pill($("pill"), kind, pill);
+
+  s.highlights.forEach((h, i) => {
+    $(`n${i}`).textContent = h.value == null ? "–" : h.value.toFixed(1);
+    $(`u${i}`).textContent = `${h.unit} ${h.caption}`;
+  });
+  renderCircuits(s);
+
+  const lost = s.sensors.filter(x => x.lost);
+  if (!s.sensors_alive) hi.banner("The sensor task has stopped answering. The controller restarts itself if it stays that way.");
+  else if (lost.length) hi.banner(`Not reading: ${lost.map(x => x.label).join(", ")}. Check the bus wiring.`);
+  else if (s.mqtt.outbox_bytes > s.mqtt.outbox_limit_bytes * 0.8) hi.banner("The broker is unreachable and the buffer is nearly full; readings will start to drop.");
+  else if (!s.mqtt.connected) hi.banner(`Readings are buffered on the device (${s.mqtt.outbox_bytes} B) until the broker answers.`, true);
+  else if (s.system.pending_verify) hi.banner("New firmware is being checked. It rolls back on its own if something is wrong.", true);
+  else hi.banner("");
+}
+
+function renderSettings(s) {
+  hi.rows($("sensorList"), [...s.sensors].sort((a, b) => a.order - b.order).map(x => [
+    x.label,
+    x.lost ? "lost" : degU(x.c),
+    `${x.id}${x.age_s >= 0 ? ` · ${hi.dur(x.age_s)} ago` : ""}${x.errors ? ` · ${x.errors} errors` : ""}`,
+  ]));
+  hi.rows($("mqttList"), [
+    ["Broker", s.mqtt.connected ? "connected" : "offline", s.mqtt.broker],
+    ["Buffered", `${s.mqtt.outbox_bytes} B`, `limit ${s.mqtt.outbox_limit_bytes} B, kept up to 1 h`],
+    ["Every", `${s.sample_period_s} s`, "one reading per sensor"],
+  ]);
+  const sys = s.system;
+  hi.rows($("deviceList"), [
+    ["Board", s.device, s.mac],
+    ["Version", `${sys.version}`, `ESP-IDF ${sys.idf}, ${sys.partition}`],
+    ["Bootloader", sys.bootloader_idf === "unknown" ? "unknown" : `ESP-IDF ${sys.bootloader_idf}`, ""],
+    ["Running", hi.uptime(sys.uptime_s), sys.up_since ? `since ${sys.up_since}` : "clock not set yet"],
+    ["Wi-Fi", sys.wifi.connected ? `${sys.wifi.rssi} dBm` : "offline", sys.wifi.connected ? `channel ${sys.wifi.channel}` : ""],
+    ["Memory free", `${sys.heap_kb.free} KB`, `lowest ${sys.heap_kb.min} KB`],
+    ["Last restart", sys.reset_reason, ""],
+  ]);
+  $("otaText").textContent = sys.ota_running ? "Checking for a new version…" : "Installs a new version if one is published";
+  $("otaBtn").disabled = sys.ota_running;
+}
+
+function render(s) {
+  renderLive(s);
+  if (tabs.current === "settings") renderSettings(s);
+  if (tabs.current === "history") {
+    $("hSensors").textContent = s.sensors.length;
+    $("hErrors").textContent = s.sensors.reduce((sum, x) => sum + x.errors, 0);
+  }
+}
+
+let eventsSeen = "";
+let historyAt = 0;
+async function refresh() {
+  clearTimeout(timer);
+  try {
+    state = await hi.api("/api/status");
+    render(state);
+    const marker = state.sensors.map(x => `${x.lost}${x.errors}`).join("|") + state.mqtt.connected;
+    if (marker !== eventsSeen) { eventsSeen = marker; loadEvents(); }
+    if (tabs.current === "history" && Date.now() - historyAt > 60000) loadHistory();
+  } catch (e) {
+    if (e.status !== 401) { hi.banner("Can’t reach the controller. Retrying…"); hi.pill($("pill"), "bad", "Offline"); }
+  }
+  if (!document.hidden) timer = setTimeout(refresh, 5000);
+}
+
+function eventItem(e) {
+  const item = {ts: e.ts, what: "", small: e.detail || "", amt: "", kind: ""};
+  if (e.type === "sensors") {
+    item.what = e.prev_count ? "Bus rescanned" : "Sensors found";
+    item.small = e.prev_count ? `was ${e.prev_count}` : "";
+    item.amt = String(e.count);
+    item.kind = e.prev_count && e.count < e.prev_count ? "bad" : "";
+  } else if (e.type === "sensor_lost") {
+    item.what = "Sensor lost";
+    item.kind = "bad";
+  } else if (e.type === "sensor_back") {
+    item.what = "Sensor back";
+    item.kind = "ok";
+  } else if (e.type === "mqtt") {
+    item.what = e.on ? "Broker connected" : "Broker lost";
+    item.small = e.on ? "" : "readings are buffered";
+    item.kind = e.on ? "" : "warn";
+  } else {
+    item.what = "Buffer full, readings dropped";
+    item.kind = "bad";
+  }
+  if (e.temp_c != null && !item.small) item.small = degU(e.temp_c);
+  return item;
+}
+
+async function loadEvents() {
+  try {
+    const items = (await hi.api("/api/events")).events.map(eventItem);
+    $("eventsEmpty").hidden = items.length > 0;
+    hi.events($("events"), items);
+    hi.events($("latest"), items.slice(0, 3));
+    $("latestTitle").hidden = items.length === 0;
+  } catch (e) { /* the status banner already reports connectivity */ }
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+const node = (tag, attrs, text) => {
+  const n = document.createElementNS(SVG, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+};
+/* Eight lines that stay apart on a dark background; supply and return of a circuit are neighbours. */
+const SERIES_COLORS = ["#e8604c", "#f2a43c", "#e9c046", "#6cc08b", "#4bb3a6", "#6fa8c7", "#8f8ae0", "#d07ab8"];
+const seriesColor = i => SERIES_COLORS[i % SERIES_COLORS.length];
+const hidden = new Set();
+
+async function loadHistory() {
+  historyAt = Date.now();
+  let h;
+  try { h = await hi.api("/api/history"); } catch (e) { return; }
+
+  const shown = h.series.filter(s => !hidden.has(s.id));
+  const vals = shown.flatMap(s => s.t.filter(v => v != null)).map(v => v / 10);
+  const points = Math.max(0, ...h.series.map(s => s.t.length));
+  $("hSpan").textContent = (points * h.period_s / 3600).toFixed(points * h.period_s < 36000 ? 1 : 0);
+  $("hSpanUnit").textContent = "h recorded";
+  $("chartNote").hidden = points > 0;
+
+  const legend = $("legend");
+  legend.replaceChildren();
+  h.series.forEach((s, i) => {
+    const b = hi.el("button", "", s.label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(!hidden.has(s.id)));
+    b.prepend(hi.el("i", "", ""));
+    b.firstChild.style.color = seriesColor(i);
+    b.addEventListener("click", () => {
+      if (hidden.has(s.id)) hidden.delete(s.id); else hidden.add(s.id);
+      loadHistory();
+    });
+    legend.append(b);
+  });
+
+  const chart = $("chart");
+  chart.replaceChildren();
+  if (!vals.length) return;
+
+  const W = 360, H = 190, L = 32, R = 6, T = 8, B = 22;
+  const span = 24 * 3600;
+  const lo = Math.floor(Math.min(...vals) - 1), hi_ = Math.ceil(Math.max(...vals) + 1);
+  const x = age => L + (W - L - R) * (1 - age / span);
+  const y = c => T + (H - T - B) * (1 - (c - lo) / Math.max(1, hi_ - lo));
+
+  for (const c of [lo, Math.round((lo + hi_) / 2), hi_]) {
+    chart.append(node("line", {class: "grid", x1: L, x2: W - R, y1: y(c), y2: y(c)}));
+    chart.append(node("text", {x: L - 5, y: y(c) + 4, "text-anchor": "end"}, `${c}°`));
+  }
+  for (const [age, label] of [[span, "24 h ago"], [span / 2, "12 h"], [0, "now"]]) {
+    chart.append(node("text", {x: x(age), y: H - 5, "text-anchor": age === span ? "start" : age === 0 ? "end" : "middle"}, label));
+  }
+  h.series.forEach((s, i) => {
+    if (hidden.has(s.id)) return;
+    const n = s.t.length;
+    const ageOf = k => h.newest_age_s + (n - 1 - k) * h.period_s;
+    let d = "";
+    let pen = false;
+    for (let k = 0; k < n; k++) {
+      const v = s.t[k];
+      const age = ageOf(k);
+      if (v == null || age > span) { pen = false; continue; }
+      d += `${pen ? "L" : "M"}${x(age).toFixed(1)} ${y(v / 10).toFixed(1)}`;
+      pen = true;
+    }
+    if (d) chart.append(node("path", {class: "line", d, stroke: seriesColor(i)}));
+  });
+}
+
+$("otaBtn").addEventListener("click", () => hi.api("/api/ota", {}).then(refresh, e => hi.banner(`Update check not started: ${e.message}`)));
+$("rebootBtn").addEventListener("click", async () => {
+  if (!confirm("Restart the controller? Readings waiting in the buffer are lost.")) return;
+  try { await hi.api("/api/reboot", {}); hi.banner("Restarting…", true); setTimeout(refresh, 8000); }
+  catch (e) { hi.banner(`Restart failed: ${e.message}`); }
+});
+$("logoutBtn").addEventListener("click", async () => { try { await hi.api("/api/logout", {}); } finally { location.reload(); } });
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+
+(async () => {
+  try { await hi.session(); } catch (e) { hi.banner("Can’t reach the controller. Retrying…"); }
+  refresh();
+})();
+</script>
+</body>
+</html>

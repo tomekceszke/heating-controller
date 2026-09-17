@@ -1,3 +1,3 @@
 #pragma once
 
-void api(void);
+void api_start(void);

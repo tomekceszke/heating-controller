@@ -1,0 +1,10 @@
+{
+  "name": "h-controller",
+  "short_name": "h-controller",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#151311",
+  "theme_color": "#151311",
+  "icons": [{"src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}]
+}
