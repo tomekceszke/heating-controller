@@ -6,10 +6,15 @@ notifications and the web app must never weaken it.**
 
 ## Status
 
-- **Firmware 2.0.0 is built and waiting to be migrated onto both boards**; production still runs the legacy
-  firmware until the migration is logged in `docs/IDF5_MIGRATION.md`. 2.0.0 moves the boards to home-idf, the
-  5.4.2 bootloader, the water/gate partition layout (ota_0 2M / ota_1 1.875M / coredump) and native rollback,
-  over the air with the one-shot migrator in `migrator/`. No spare-board rehearsal (owner decision).
+- **heating-controller-1 runs the legacy firmware** and is collecting normally. Untouched.
+- **heating-controller-2 was migrated on 2026-09-17 and is down**: the bootloader, partition table and 2.0.0 all
+  installed correctly, but 2.0.0 reboots every 8 s on the task watchdog, so the board collects nothing. The cause
+  and the fix are in `docs/IDF5_MIGRATION.md`; 2.0.1 fixes it but **cannot be delivered over the air** (the board
+  is up for ~8 s, the OTA needs longer). **Next step: reflash hc-2 over USB** with
+  `firmware/build.sh -p <port> flash`, verify, then decide about hc-1.
+- The OTA server on .15 is stopped and the published image parked, so a reboot of hc-1 cannot pull 2.x onto its
+  legacy partition layout. Restart it (`cd ~/apps/ota-server && python3 ota_server.py`) only when publishing
+  deliberately.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
   `heating-controller.bin` on the OTA server, `POST /admin/su` (or the app's Settings tab) — **one board at a time**,
   because both poll the same file name and the download deletes it.
