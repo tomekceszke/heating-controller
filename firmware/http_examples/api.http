@@ -1,0 +1,19 @@
+### Read sensor
+GET http://{{host}}/sensor?sensor_id={{sensor_id}}
+
+### GET HW Status
+GET http://{{host}}/admin/hw-status
+Connection: close
+
+### Trigger OTA update
+POST http://{{host}}/admin/su
+Authorization: {{auth}}
+Connection: close
+
+1
+
+### Reboot
+POST http://{{host}}/admin/reboot
+Authorization: {{auth}}
+
+1

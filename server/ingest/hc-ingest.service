@@ -1,0 +1,19 @@
+[Unit]
+Description=heating-controller MQTT -> PostgreSQL ingest
+After=network-online.target mosquitto.service postgresql.service
+Wants=network-online.target
+
+[Service]
+User=hc_ingest
+Group=hc_ingest
+EnvironmentFile=/etc/hc-server/secrets.env
+ExecStart=/opt/hc-server/venv/bin/python /opt/hc-server/ingest/hc_ingest.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

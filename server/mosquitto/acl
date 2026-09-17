@@ -1,0 +1,7 @@
+# /etc/mosquitto/acl
+user heating-controller
+topic write heating/+/temp/+
+topic readwrite heating/+/status
+
+user hc-ingest
+topic read heating/#

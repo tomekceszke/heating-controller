@@ -1,0 +1,17 @@
+# clangd config for ESP-IDF (used by Zed / any clangd-based editor).
+# Compile database comes from `idf.py build` (build/compile_commands.json).
+# Use Espressif's clangd (~/.espressif/tools/esp-clang/.../bin/clangd) — it knows the Xtensa target.
+CompileFlags:
+  CompilationDatabase: build
+  Remove:
+    # GCC-only flags that clang rejects
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -fno-shrink-wrap
+    - -fzero-init-padding-bits=*
+Diagnostics:
+  Includes:
+    IgnoreHeader:
+      # FreeRTOS requires FreeRTOS.h before task.h/semphr.h/event_groups.h (#error otherwise),
+      # so "unused include" for it is a false positive — never apply that fix.
+      - FreeRTOS\.h

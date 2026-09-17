@@ -1,0 +1,43 @@
+# IDE / tooling
+.idea
+.zed/
+*.iml
+.cache
+.claude
+.worktrees/
+.DS_Store
+**/.DS_Store
+
+# Build output
+build/
+cmake-build-debug/
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+
+# ESP-IDF
+sdkconfig.old
+managed_components/
+
+# Secrets — never commit
+credentials.h
+firmware/certs/*
+!firmware/certs/.gitkeep
+keys/
+firmware/http_examples/*.private.env.json
+
+# Firmware images kept for rollback (binaries, not source)
+firmware/releases/
+server/secrets.env
+server/migrate/out/
+__pycache__/
+
+# Pre-repository firmware, local only (contains secrets)
+legacy/

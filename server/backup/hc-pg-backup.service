@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly pg_dump of the heating database
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/sh -c 'pg_dump -Fc heating > /var/backups/heating/heating-$(date +%%Y%%m%%d).dump.tmp && mv /var/backups/heating/heating-$(date +%%Y%%m%%d).dump.tmp /var/backups/heating/heating-$(date +%%Y%%m%%d).dump'
+ExecStartPost=/usr/bin/find /var/backups/heating -name 'heating-*.dump' -mtime +14 -delete
