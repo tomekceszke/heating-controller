@@ -37,6 +37,11 @@ static const char *TAG = "SENSOR";
 // Max time to wait for the 1-Wire bus; one measurement cycle holds it for ~1 s
 #define BUS_LOCK_TIMEOUT_MS 5000
 
+/* The task is subscribed to the task watchdog, so it must never sleep for a whole sampling period in
+ * one go: it waits in slices and feeds the watchdog between them. That keeps a hung 1-Wire read or a
+ * stuck bus mutex fatal whatever CONFIG_ESP_TASK_WDT_TIMEOUT_S is set to. */
+#define WDT_FEED_SLICE_MS 2000
+
 static OneWireBus *s_owb = NULL;
 static owb_rmt_driver_info s_rmt_driver_info;
 static DS18B20_Info *s_devices[MAX_DEVICES] = {0};
@@ -262,6 +267,20 @@ static bool all_lost(size_t count)
     return count > 0;
 }
 
+/* Sleeps until last_wake_time + period, feeding the task watchdog along the way. */
+static void wait_feeding_wdt(TickType_t *last_wake_time, uint32_t period_ms)
+{
+    const TickType_t deadline = *last_wake_time + pdMS_TO_TICKS(period_ms);
+    const TickType_t slice = pdMS_TO_TICKS(WDT_FEED_SLICE_MS);
+    for (;;) {
+        esp_task_wdt_reset();
+        const int32_t left = (int32_t) (deadline - xTaskGetTickCount());   // signed: wrap-safe
+        if (left <= 0) break;
+        vTaskDelay((TickType_t) left < slice ? (TickType_t) left : slice);
+    }
+    *last_wake_time = deadline;
+}
+
 static void sensor_task(void *arg)
 {
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
@@ -277,8 +296,7 @@ static void sensor_task(void *arg)
         xSemaphoreGive(s_bus_mutex);
         if (found == 0) {
             ESP_LOGE(TAG, "There is no 1-Wire device available on the bus. Scanning...");
-            esp_task_wdt_reset();
-            xTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TEMP_SENSOR_SCAN_RETRY_S * 1000));
+            wait_feeding_wdt(&last_wake_time, TEMP_SENSOR_SCAN_RETRY_S * 1000);
         }
     }
     events_publish(&(event_t) {.type = EV_SENSORS, .mono_s = events_mono_s(),
@@ -351,7 +369,7 @@ static void sensor_task(void *arg)
             }
         }
 
-        xTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(SAMPLE_PERIOD_S * 1000));
+        wait_feeding_wdt(&last_wake_time, SAMPLE_PERIOD_S * 1000);
     }
 }
 

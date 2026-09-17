@@ -19,11 +19,12 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
 CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
 
-# Watchdogs: the sensor task feeds the task watchdog, so the timeout must exceed SAMPLE_PERIOD_S (60 s);
-# a hung 1-Wire read or a stuck bus mutex then reboots the board
+# Watchdogs: the sensor task feeds the task watchdog every 2 s while it waits out SAMPLE_PERIOD_S, so a
+# hung 1-Wire read or a stuck bus mutex reboots the board within this timeout.
+# Kconfig caps this at 60; a larger value is silently ignored and falls back to the default of 5.
 CONFIG_ESP_TASK_WDT_EN=y
 CONFIG_ESP_TASK_WDT_INIT=y
-CONFIG_ESP_TASK_WDT_TIMEOUT_S=90
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
 CONFIG_ESP_TASK_WDT_PANIC=y
 CONFIG_ESP_INT_WDT=y
 
