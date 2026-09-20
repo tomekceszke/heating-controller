@@ -190,6 +190,10 @@ float read_sensor(const char *sensor_id)
 
 bool sensor_alive(void)
 {
+    /* "The task is doing its job", not "the bus is populated": a board whose sensors are unplugged is
+     * useless but not unhealthy, and rolling back would not give it its sensors either. Scanning an
+     * empty bus therefore counts as alive, so hi_health verifies the image instead of ping-ponging
+     * between two builds that both find nothing. */
     // One missed cycle is tolerated; a 1-Wire read plus the MQTT enqueue is well under a second
     return s_last_cycle_mono_s > 0 && (events_mono_s() - s_last_cycle_mono_s) < (2 * SAMPLE_PERIOD_S);
 }
@@ -294,6 +298,7 @@ static void sensor_task(void *arg)
         xSemaphoreTake(s_bus_mutex, portMAX_DELAY);
         found = discover_locked();
         xSemaphoreGive(s_bus_mutex);
+        s_last_cycle_mono_s = events_mono_s();      // scanning counts as alive, see sensor_alive()
         if (found == 0) {
             ESP_LOGE(TAG, "There is no 1-Wire device available on the bus. Scanning...");
             wait_feeding_wdt(&last_wake_time, TEMP_SENSOR_SCAN_RETRY_S * 1000);

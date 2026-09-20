@@ -6,14 +6,13 @@ notifications and the web app must never weaken it.**
 
 ## Status
 
-- **heating-controller-1 runs the legacy firmware** and is collecting normally. Untouched.
-- **heating-controller-2 was migrated on 2026-09-17 and is down**: the bootloader, partition table and 2.0.0 all
-  installed correctly, but 2.0.0 reboots every 8 s on the task watchdog, so the board collects nothing. The cause
-  and the fix are in `docs/IDF5_MIGRATION.md`; 2.0.1 fixes it but **cannot be delivered over the air** (the board
-  is up for ~8 s, the OTA needs longer). **Next step: reflash hc-2 over USB** with
-  `firmware/build.sh -p <port> flash`, verify, then decide about hc-1.
-- The OTA server on .15 is stopped and the published image parked, so a reboot of hc-1 cannot pull 2.x onto its
-  legacy partition layout. Restart it (`cd ~/apps/ota-server && python3 ota_server.py`) only when publishing
+- **heating-controller-1 runs the legacy firmware** and is collecting normally. Untouched; its migration is the
+  ordinary OTA + migrator path whenever it is wanted.
+- **heating-controller-2 runs 2.0.2**, recovered over USB on 2026-09-20 after 2.0.0 put it in a watchdog reboot
+  loop. The board verifies its image, MQTT connects, both OTA slots hold a complete image. Full story in
+  `docs/IDF5_MIGRATION.md`.
+- The OTA server on .15 is stopped and the last published image parked, so a reboot of hc-1 cannot pull 2.x onto
+  its legacy partition layout. Restart it (`cd ~/apps/ota-server && python3 ota_server.py`) only when publishing
   deliberately.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
   `heating-controller.bin` on the OTA server, `POST /admin/su` (or the app's Settings tab) — **one board at a time**,

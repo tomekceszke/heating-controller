@@ -120,6 +120,31 @@ State left overnight: hc-2 loops and collects nothing; **hc-1 was never touched 
 with its 3 sensors. The OTA server on .15 is stopped and the published file renamed to
 `heating-controller-2.0.1.bin.parked`, so a reboot of hc-1 cannot pull 2.x onto its legacy partition layout.
 
+### 2026-09-20: hc-2 recovered over USB, two follow-up fixes
+
+The board was brought to the desk and flashed over USB (`firmware/build.sh -p /dev/cu.usbserial-0001 flash`:
+bootloader, partition table, app and `ota_data_initial`). A router upgrade in between changed nothing that
+mattered: the DHCP reservation still gives 192.168.11.249 and the stored WiFi credentials still associate (the AP
+moved from channel 1 to 11).
+
+What the recovery showed:
+
+- **2.0.1 fixes the loop.** `reset_reason` is `power-on`, uptime climbs, no watchdog resets.
+- **MQTT was only a symptom.** With the board staying up, `mqtt.connected` is true and the outbox drains; the
+  `transport_base: Failed to open a new connection: 32772` line was the first attempt racing the WiFi association,
+  which esp-mqtt retries — the 8 s loop never reached the retry.
+- **`ota_1` still held the truncated image** from the OTA attempts of 2026-09-17. Its app descriptor is at the very
+  start of the partition, so it was written before the reset and looks valid to
+  `esp_ota_get_partition_description()`. On a bench board with no sensors attached the image never reports healthy,
+  so `hi_health` would have rolled back into that stump after 300 s. A full copy of the firmware was written to
+  0x210000 over USB, which makes the fallback real and any rollback harmless.
+
+That last point exposed a design fault of its own, fixed in **2.0.2**: `sensor_alive()` only became true after a
+completed sampling cycle, so a board that finds nothing on the bus never verifies its image. In the field a broken
+1-Wire bus would then have rolled back, found nothing again, and ping-ponged between two builds. Health now means
+"the sensor task is doing its job": scanning an empty bus counts as alive, and an empty bus is reported through the
+status and the app instead ("Looking for sensors on the bus").
+
 ### Still to check once hc-2 runs 2.0.1
 
 - MQTT never connected in the loop: `transport_base: Failed to open a new connection: 32772` about a second after
