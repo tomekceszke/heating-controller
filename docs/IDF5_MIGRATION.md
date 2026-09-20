@@ -145,10 +145,36 @@ completed sampling cycle, so a board that finds nothing on the bus never verifie
 "the sensor task is doing its job": scanning an empty bus counts as alive, and an empty bus is reported through the
 status and the app instead ("Looking for sensors on the bus").
 
-### Still to check once hc-2 runs 2.0.1
+### 2026-09-20: heating-controller-1 migrated
 
-- MQTT never connected in the loop: `transport_base: Failed to open a new connection: 32772` about a second after
-  boot, every boot. `metrics_start()` runs before `hi_wifi_wait_connected()`, so the first attempt is expected to
-  fail and esp-mqtt retries after 10 s — which the board never reached. Water-controller starts its client the same
-  way, so this is probably a symptom rather than a second fault, but confirm the broker connects and
-  `temperature_raw` fills again before migrating hc-1.
+Firmware 2.0.2 `12bc33451843215e…` (928 816 B), migrator `c289d40c91bd271e…` (829 472 B), built from commit
+`cb864da`. The migrator binary is identical to the one built on 2026-09-17 — it only embeds the bootloader and the
+partition table, and neither changed.
+
+| Time (CEST) | Step |
+|---|---|
+| 10:00 | Preflight: hc-1 up since 2026-09-11, 3 sensors reading (23.6 / 24.9 / 15.3 outdoor), one row per sensor per minute |
+| 10:00:45 | Migrator published as `heating-controller.bin`, OTA server started on .15 |
+| 10:00:53 | Legacy `POST /admin/su` downloaded it, DELETE at 10:01:12, reboot |
+| 10:01:58 | `GET /migrator` stage `ready` from 0x210000, every check ok; bootloader in flash again had no description (pre-ESP-IDF 5.1) |
+| 10:02 | Firmware 2.0.2 published, sha256 verified on the server |
+| 10:08:2x | `POST /migrator/commit`: partition table and bootloader written and verified |
+| 10:08:22 | Migrator downloaded 2.0.2 into ota_0 |
+| 10:08:45 | 2.0.2 boots: `partition` ota_0, `idf` v5.4.2, `bootloader_idf` v5.4.2, `pending_verify` false, 3 sensors, 0 errors, MQTT connected |
+
+Verified afterwards: `/sensor?sensor_id=9b00000009029f28` still answers in the legacy shape (15.4) for the ulanzi
+display, and `temperature_raw` fills again for `2462abf200dc` with 3 sensors a minute. The gap in the readings runs
+from 10:01:07 to 10:08:47 — about seven and a half minutes, most of it waiting between `ready` and the commit.
+
+The OTA server on .15 is stopped again and the file left as `heating-controller.bin.old`.
+
+Both boards now run 2.0.2 on the 5.4.2 bootloader and the shared partition layout. **heating-controller-2 is still
+on the desk with its 1-Wire harness unplugged** (0 sensors, which it reports and survives since 2.0.2); it needs
+the sensors reconnected and the board refitted.
+
+### Resolved: the MQTT error was a symptom
+
+`transport_base: Failed to open a new connection: 32772` appeared about a second after every boot during the
+reboot loop. `metrics_start()` runs before `hi_wifi_wait_connected()`, so the first attempt races the association
+and esp-mqtt retries after 10 s — which a board rebooting every 8 s never reached. Both boards now report
+`mqtt.connected` true with an empty outbox. No change needed.

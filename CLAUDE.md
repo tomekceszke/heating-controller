@@ -6,14 +6,14 @@ notifications and the web app must never weaken it.**
 
 ## Status
 
-- **heating-controller-1 runs the legacy firmware** and is collecting normally. Untouched; its migration is the
-  ordinary OTA + migrator path whenever it is wanted.
-- **heating-controller-2 runs 2.0.2**, recovered over USB on 2026-09-20 after 2.0.0 put it in a watchdog reboot
-  loop. The board verifies its image, MQTT connects, both OTA slots hold a complete image. Full story in
+- **Both boards run firmware 2.0.2** on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout
+  (ota_0 2M / ota_1 1.875M / coredump) with native rollback. hc-2 was migrated 2026-09-17 and had to be recovered
+  over USB after a watchdog bug in 2.0.0; hc-1 was migrated 2026-09-20 over the air without incident. Full story in
   `docs/IDF5_MIGRATION.md`.
-- The OTA server on .15 is stopped and the last published image parked, so a reboot of hc-1 cannot pull 2.x onto
-  its legacy partition layout. Restart it (`cd ~/apps/ota-server && python3 ota_server.py`) only when publishing
-  deliberately.
+- **heating-controller-2 is on the desk with its 1-Wire harness unplugged** (reports 0 sensors, which 2.0.2
+  survives) — it needs the sensors reconnected and the board refitted.
+- The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
+  publishing deliberately, and remember both boards poll the same file name.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
   `heating-controller.bin` on the OTA server, `POST /admin/su` (or the app's Settings tab) — **one board at a time**,
   because both poll the same file name and the download deletes it.
