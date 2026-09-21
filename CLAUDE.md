@@ -6,12 +6,14 @@ notifications and the web app must never weaken it.**
 
 ## Status
 
-- **Both boards run firmware 2.0.2** on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout
-  (ota_0 2M / ota_1 1.875M / coredump) with native rollback. hc-2 was migrated 2026-09-17 and had to be recovered
-  over USB after a watchdog bug in 2.0.0; hc-1 was migrated 2026-09-20 over the air without incident. Full story in
-  `docs/IDF5_MIGRATION.md`.
-- **heating-controller-2 is on the desk with its 1-Wire harness unplugged** (reports 0 sensors, which 2.0.2
-  survives) — it needs the sensors reconnected and the board refitted.
+- **Both boards run firmware 2.0.2** and collect normally: hc-1 (3 sensors) and hc-2 (7 sensors, refitted
+  2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout with native rollback.
+  Migration story in `docs/IDF5_MIGRATION.md`.
+- **Known bug, not yet fixed:** the sensor task calls `metrics_publish()` -> `esp_mqtt_client_enqueue()`, which
+  waits on the esp-mqtt API lock with no timeout. While the broker is unreachable the esp-mqtt task holds that lock
+  across `transport_connect`, so the sensor task can block for `CONFIG_MQTT_NETWORK_TIMEOUT_MS` (10 s) and trip the
+  task watchdog. This reset hc-1 on 2026-09-20 during mains work. Fix: give `metrics` its own queue and task and
+  have the sensor task do a non-blocking `xQueueSend`, as `water-controller/firmware/main/telemetry.c` does.
 - The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
   publishing deliberately, and remember both boards poll the same file name.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as

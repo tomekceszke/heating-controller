@@ -178,3 +178,37 @@ the sensors reconnected and the board refitted.
 reboot loop. `metrics_start()` runs before `hi_wifi_wait_connected()`, so the first attempt races the association
 and esp-mqtt retries after 10 s — which a board rebooting every 8 s never reached. Both boards now report
 `mqtt.connected` true with an empty outbox. No change needed.
+
+
+### 2026-09-21: hc-2 refitted, and a watchdog reset on hc-1
+
+hc-2 went back on the wall with its 1-Wire harness. It first came up finding nothing at all: the driver logged
+`owb_rmt: rx_items == 0` every 30 s, meaning the reset pulse got no presence pulse back. The firmware was not at
+fault — hc-1 was reading its three sensors off the same binary in the same seconds — and it was not the ESP-IDF 6
+driver question either, since `rx_items == 0` comes from the vendored legacy `components/esp32-owb/owb_rmt.c` and
+the build has neither `espressif/onewire_bus` nor `espressif/ds18b20`. After the connector was reseated and the
+board power-cycled, all 7 sensors appeared with 0 errors and `temperature_raw` filled again at 09:34:03. The gap
+for `ec626083a66c` runs 2026-09-17 23:36:30 to 2026-09-21 09:34:03.
+
+**hc-1 took a `task watchdog` reset at about 22:27 on 2026-09-20**, during mains and network work between 21:00
+and 23:00, and has been stable since. The UDP log host was down from 21:04 to 09:24, so there is no log of it, but
+the mechanism is in the code and is reproducible by reasoning:
+
+- `MQTT_API_LOCK(c)` is `xSemaphoreTakeRecursive(c->api_lock, portMAX_DELAY)` (`mqtt_client_priv.h:54`) — no timeout.
+- `esp_mqtt_client_enqueue()` takes that lock (`mqtt_client.c:2207`).
+- The esp-mqtt task takes the same lock at the top of its loop (`mqtt_client.c:1580`) and holds it across the whole
+  state machine, including `transport_connect`.
+
+So with the broker unreachable, `metrics_publish()` blocks the sensor task for up to
+`CONFIG_MQTT_NETWORK_TIMEOUT_MS` (10 s) — the same as the task watchdog timeout. Corroboration: hc-2 sat through
+the identical outage with 0 sensors, never called `metrics_publish()`, and was the one board that did **not** reset.
+
+**Open: the sensor task must not call into esp-mqtt.** water-controller already solves this — `telemetry.c` owns a
+queue and a task and producers only do a non-blocking `xQueueSend` ("Nothing here can block or stop protection").
+heating-controller copied the topics and the payload but not that structure, and should.
+
+### Infrastructure note: the UDP log server buffers
+
+`logging_server_hc.py` on .15 runs under systemd and prints to a pipe, so Python block-buffers its output and
+journald shows nothing until a few KB have accumulated. During the 2026-09-17 reboot loop the volume hid this.
+Add `Environment=PYTHONUNBUFFERED=1` to the unit, or the log looks dead while it is merely late.
