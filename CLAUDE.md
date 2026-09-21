@@ -6,14 +6,9 @@ notifications and the web app must never weaken it.**
 
 ## Status
 
-- **Both boards run firmware 2.0.2** and collect normally: hc-1 (3 sensors) and hc-2 (7 sensors, refitted
+- **Both boards run firmware 2.0.3** and collect normally: hc-1 (3 sensors) and hc-2 (7 sensors, refitted
   2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout with native rollback.
   Migration story in `docs/IDF5_MIGRATION.md`.
-- **Known bug, not yet fixed:** the sensor task calls `metrics_publish()` -> `esp_mqtt_client_enqueue()`, which
-  waits on the esp-mqtt API lock with no timeout. While the broker is unreachable the esp-mqtt task holds that lock
-  across `transport_connect`, so the sensor task can block for `CONFIG_MQTT_NETWORK_TIMEOUT_MS` (10 s) and trip the
-  task watchdog. This reset hc-1 on 2026-09-20 during mains work. Fix: give `metrics` its own queue and task and
-  have the sensor task do a non-blocking `xQueueSend`, as `water-controller/firmware/main/telemetry.c` does.
 - The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
   publishing deliberately, and remember both boards poll the same file name.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
@@ -96,7 +91,7 @@ firmware/
     │                       WiFi/notify/NTP/OTA -> MQTT -> auth/httpd
     ├── device.c            which board this is (STA MAC), sensor labels and Live highlights
     ├── sensor.c            1-Wire discovery and sampling task, per-sensor state, mutexed bus
-    ├── metrics.c           esp-mqtt client and the topic contract with hc-ingest
+    ├── metrics.c           esp-mqtt client on its own queue and task; topic contract with hc-ingest
     ├── events.c            RAM ring of 50 events, ntfy mapping
     ├── history.c           24 h of one-minute samples per sensor in RAM
     ├── api.c               routes on the home-idf HTTP server
@@ -106,6 +101,12 @@ firmware/
         ├── credentials.h          secrets (NEVER committed)
         └── credentials-example.h  template
 ```
+
+**Nothing the sensor task calls may block on the network.** `esp_mqtt_client_enqueue()` waits on the esp-mqtt API
+lock with no timeout and the client task holds that lock across `transport_connect`, so publishing from the sensor
+task stalls it for `CONFIG_MQTT_NETWORK_TIMEOUT_MS` whenever the broker is unreachable — that reset hc-1 on
+2026-09-20. `metrics` therefore owns a queue and a task, and the sensor task only does a non-blocking
+`metrics_post()`, the same shape as `water-controller/firmware/main/telemetry.c`.
 
 The sensor task is the only code that touches the 1-Wire bus in a loop; `hi_health`'s predicate is
 `sensor_alive() && hi_wifi_is_connected()`, so a stalled task rolls a fresh image back, and the task watchdog
@@ -212,7 +213,10 @@ ESP32 x2
 
 - OTA server `https://192.168.11.15:8070`, file `heating-controller.bin` (`~/apps/ota-server` on .15), shared by
   both boards.
-- UDP logs `192.168.11.15:1340` (`nc -ul 1340`), both boards.
+- UDP logs `192.168.11.15:1340`, both boards. They are collected by `heating-controller-logging.service`
+  (`~/apps/logging_server_hc.py`, runs as `tomek`) and land in journald: `journalctl | grep 192.168.11.249`.
+  `nc -ul 1340` there gets nothing, because that service already holds the port. The script line-buffers its
+  output since 2026-09-21; without that, journald showed nothing until a few KB had built up.
 
 ## Rules
 

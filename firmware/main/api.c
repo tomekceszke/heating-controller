@@ -134,12 +134,13 @@ static cJSON *status_json(void)
     }
     add_highlights(root, list, n, now);
 
-    bool connected = false;
-    int outbox = 0;
-    metrics_state(&connected, &outbox);
+    metrics_stats_t m;
+    metrics_stats(&m);
     cJSON *mqtt = cJSON_AddObjectToObject(root, "mqtt");
-    cJSON_AddBoolToObject(mqtt, "connected", connected);
-    cJSON_AddNumberToObject(mqtt, "outbox_bytes", outbox);
+    cJSON_AddBoolToObject(mqtt, "connected", m.connected);
+    cJSON_AddBoolToObject(mqtt, "enabled", m.enabled);
+    cJSON_AddNumberToObject(mqtt, "dropped", m.dropped);
+    cJSON_AddNumberToObject(mqtt, "outbox_bytes", m.outbox_bytes);
     cJSON_AddNumberToObject(mqtt, "outbox_limit_bytes", MQTT_OUTBOX_LIMIT_BYTES);
     cJSON_AddStringToObject(mqtt, "broker", MQTT_BROKER_URI);
 

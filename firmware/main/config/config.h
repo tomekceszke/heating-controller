@@ -17,6 +17,7 @@
 #define MQTT_BROKER_URI                 "mqtt://192.168.11.16:1883"
 #define MQTT_TOPIC_PREFIX               "heating"
 #define MQTT_OUTBOX_LIMIT_BYTES         24576   // ~40 min of buffered readings for 7 sensors
+#define METRICS_QUEUE_LEN               32      // handover to the metrics task; the outbox does the real buffering
 
 /* EVENTS / HISTORY (RAM only; PostgreSQL on hc-data keeps the real history) */
 #define EVENTS_RING_SIZE                50

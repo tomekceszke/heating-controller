@@ -203,12 +203,15 @@ So with the broker unreachable, `metrics_publish()` blocks the sensor task for u
 `CONFIG_MQTT_NETWORK_TIMEOUT_MS` (10 s) — the same as the task watchdog timeout. Corroboration: hc-2 sat through
 the identical outage with 0 sensors, never called `metrics_publish()`, and was the one board that did **not** reset.
 
-**Open: the sensor task must not call into esp-mqtt.** water-controller already solves this — `telemetry.c` owns a
-queue and a task and producers only do a non-blocking `xQueueSend` ("Nothing here can block or stop protection").
-heating-controller copied the topics and the payload but not that structure, and should.
+**Fixed in 2.0.3** (deployed to both boards 2026-09-21): `metrics` owns a queue and a task, and the sensor task
+only does a non-blocking `metrics_post()`, the shape water-controller's `telemetry.c` already used. Readings now
+carry a monotonic timestamp and get their wall clock when they are sent, so a reading taken before the clock is set
+is kept instead of dropped; MQTT errors log as warnings so an unreachable broker does not raise ntfy alerts; and
+`/api/status` reports `mqtt.dropped` for readings lost to a full queue.
 
 ### Infrastructure note: the UDP log server buffers
 
 `logging_server_hc.py` on .15 runs under systemd and prints to a pipe, so Python block-buffers its output and
 journald shows nothing until a few KB have accumulated. During the 2026-09-17 reboot loop the volume hid this.
-Add `Environment=PYTHONUNBUFFERED=1` to the unit, or the log looks dead while it is merely late.
+Fixed 2026-09-21 in the script itself (`sys.stdout.reconfigure(line_buffering=True)`) rather than the unit, because
+the unit needs root and the script does not. A single packet now shows up in journald immediately.

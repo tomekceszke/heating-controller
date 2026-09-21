@@ -60,12 +60,11 @@ static void log_stats(void)
         if (list[i].lost) lost++;
         errors += list[i].errors;
     }
-    bool mqtt_connected = false;
-    int outbox = 0;
-    metrics_state(&mqtt_connected, &outbox);
+    metrics_stats_t m;
+    metrics_stats(&m);
     ESP_LOGI(TAG, "heap %u KB (min %u) | rssi %d | sensors %u (%u lost, %" PRIu32 " errors) | mqtt %s, outbox %d B",
              (unsigned) (esp_get_free_heap_size() / 1024), (unsigned) (esp_get_minimum_free_heap_size() / 1024),
-             hi_wifi_rssi(), (unsigned) n, (unsigned) lost, errors, mqtt_connected ? "up" : "down", outbox);
+             hi_wifi_rssi(), (unsigned) n, (unsigned) lost, errors, m.connected ? "up" : "down", m.outbox_bytes);
 }
 
 void app_main(void)

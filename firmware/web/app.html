@@ -209,6 +209,7 @@ function renderSettings(s) {
   hi.rows($("mqttList"), [
     ["Broker", s.mqtt.connected ? "connected" : "offline", s.mqtt.broker],
     ["Buffered", `${s.mqtt.outbox_bytes} B`, `limit ${s.mqtt.outbox_limit_bytes} B, kept up to 1 h`],
+    ["Dropped", `${s.mqtt.dropped ?? 0}`, "readings lost since restart"],
     ["Every", `${s.sample_period_s} s`, "one reading per sensor"],
   ]);
   const sys = s.system;

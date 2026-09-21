@@ -2,7 +2,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -12,8 +11,6 @@
 #include "owb.h"
 #include "owb_rmt.h"
 #include "ds18b20.h"
-
-#include "hi_ntp.h"
 
 #include "config/config.h"
 #include "device.h"
@@ -320,7 +317,6 @@ static void sensor_task(void *arg)
             errors[i] = DS18B20_ERROR_OWB;
             history_row[i] = HISTORY_NO_READING;
         }
-        time_t now = time(NULL);
         int64_t mono = events_mono_s();
 
         if (xSemaphoreTake(s_bus_mutex, pdMS_TO_TICKS(BUS_LOCK_TIMEOUT_MS)) == pdTRUE) {
@@ -339,12 +335,6 @@ static void sensor_task(void *arg)
             xSemaphoreGive(s_bus_mutex);
         }
 
-        // Readings need a valid timestamp; while WiFi is down they are buffered in the MQTT outbox
-        const bool can_send = hi_ntp_synced();
-        if (!can_send) {
-            ESP_LOGW(TAG, "Skipping upload: time not synced");
-        }
-
         for (size_t i = 0; i < count; ++i) {
             const bool ok = errors[i] == DS18B20_OK;
             const int16_t temp_x10 = ok ? (int16_t) lroundf(readings[i] * 10.0f) : 0;
@@ -356,9 +346,8 @@ static void sensor_task(void *arg)
             }
             history_row[i] = temp_x10;
             ESP_LOGI(TAG, "%s: %.4f C [%" PRIu32 " errors]", s_ids[i], readings[i], error_count);
-            if (can_send) {
-                metrics_publish((uint32_t) now, s_ids[i], readings[i]);
-            }
+            // Non-blocking handover: the metrics task owns everything that can wait on the network
+            metrics_post(mono, s_ids[i], readings[i]);
         }
         history_add(history_row, count);
         s_last_cycle_mono_s = mono;
