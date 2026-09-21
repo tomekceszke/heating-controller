@@ -5,6 +5,7 @@
 
 #include "hi_auth.h"
 #include "hi_httpd.h"
+#include "hi_mqtt.h"
 
 #include "api.h"
 #include "config/config.h"
@@ -106,9 +107,11 @@ static void add_highlights(cJSON *root, const sensor_status_t *list, size_t n, i
     }
 }
 
-static cJSON *status_json(void)
+cJSON *api_status_json(void)
 {
-    static sensor_status_t list[MAX_DEVICES];   // httpd runs one handler at a time
+    /* On the stack, not static: the hi_mqtt state task builds this document too, concurrently with a
+     * request being served. */
+    sensor_status_t list[MAX_DEVICES];
     const size_t n = sensor_snapshot(list, MAX_DEVICES);
     const int64_t now = events_mono_s();
 
@@ -134,12 +137,13 @@ static cJSON *status_json(void)
     }
     add_highlights(root, list, n, now);
 
-    metrics_stats_t m;
-    metrics_stats(&m);
+    hi_mqtt_stats_t m;
+    hi_mqtt_stats(&m);
     cJSON *mqtt = cJSON_AddObjectToObject(root, "mqtt");
     cJSON_AddBoolToObject(mqtt, "connected", m.connected);
     cJSON_AddBoolToObject(mqtt, "enabled", m.enabled);
     cJSON_AddNumberToObject(mqtt, "dropped", m.dropped);
+    cJSON_AddNumberToObject(mqtt, "queue_dropped", metrics_dropped());
     cJSON_AddNumberToObject(mqtt, "outbox_bytes", m.outbox_bytes);
     cJSON_AddNumberToObject(mqtt, "outbox_limit_bytes", MQTT_OUTBOX_LIMIT_BYTES);
     cJSON_AddStringToObject(mqtt, "broker", MQTT_BROKER_URI);
@@ -157,18 +161,28 @@ static bool admin_ok(httpd_req_t *req, esp_err_t *result)
     return false;
 }
 
+/* Reading also accepts the read-only value, so a permanent subscriber never needs the admin secret
+ * that carries OTA and reboot with it. */
+static bool admin_read_ok(httpd_req_t *req, esp_err_t *result)
+{
+    if (hi_auth_readonly_header_valid(req)) return true;
+    httpd_resp_set_status(req, "401 Unauthorized");
+    *result = httpd_resp_send(req, "", 0);
+    return false;
+}
+
 static esp_err_t status_handler(httpd_req_t *req)
 {
     esp_err_t result;
     if (!hi_httpd_guard(req, HI_GUARD_SESSION, NULL, &result)) return result;
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 static esp_err_t admin_status_handler(httpd_req_t *req)
 {
     esp_err_t result;
-    if (!admin_ok(req, &result)) return result;
-    return hi_httpd_send_json(req, "200 OK", status_json());
+    if (!admin_read_ok(req, &result)) return result;
+    return hi_httpd_send_json(req, "200 OK", api_status_json());
 }
 
 static esp_err_t events_handler(httpd_req_t *req)

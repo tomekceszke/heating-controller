@@ -8,6 +8,7 @@
 #include "hi_auth.h"
 #include "hi_health.h"
 #include "hi_log.h"
+#include "hi_mqtt.h"
 #include "hi_notify.h"
 #include "hi_ntp.h"
 #include "hi_ota.h"
@@ -31,6 +32,7 @@ extern const char ota_cert_pem_start[] asm("_binary_ota_server_cert_15_pem_start
 /* credentials.h values may be obfuscated ("obf1:...", home-idf tools/obfuscate.py) */
 static char s_wifi_pass[65];
 static char s_admin_header[128];
+static char s_readonly_header[128];
 static char s_mqtt_pass[65];
 static char s_ntfy_topic[65];
 static char s_ntfy_error_topic[65];
@@ -39,6 +41,7 @@ static void reveal_credentials(void)
 {
     bool ok = hi_secret_reveal(WIFI_PASS, s_wifi_pass, sizeof(s_wifi_pass))
               & hi_secret_reveal(HEADER_AUTHORIZATION_VALUE, s_admin_header, sizeof(s_admin_header))
+              & hi_secret_reveal(HEADER_AUTHORIZATION_READONLY_VALUE, s_readonly_header, sizeof(s_readonly_header))
               & hi_secret_reveal(MQTT_PASS, s_mqtt_pass, sizeof(s_mqtt_pass))
               & hi_secret_reveal(NTFY_TOPIC, s_ntfy_topic, sizeof(s_ntfy_topic))
               & hi_secret_reveal(NTFY_ERROR_TOPIC, s_ntfy_error_topic, sizeof(s_ntfy_error_topic));
@@ -60,8 +63,8 @@ static void log_stats(void)
         if (list[i].lost) lost++;
         errors += list[i].errors;
     }
-    metrics_stats_t m;
-    metrics_stats(&m);
+    hi_mqtt_stats_t m;
+    hi_mqtt_stats(&m);
     ESP_LOGI(TAG, "heap %u KB (min %u) | rssi %d | sensors %u (%u lost, %" PRIu32 " errors) | mqtt %s, outbox %d B",
              (unsigned) (esp_get_free_heap_size() / 1024), (unsigned) (esp_get_minimum_free_heap_size() / 1024),
              hi_wifi_rssi(), (unsigned) n, (unsigned) lost, errors, m.connected ? "up" : "down", m.outbox_bytes);
@@ -97,14 +100,15 @@ void app_main(void)
     });
     hi_ntp_start(&(hi_ntp_config_t) {.servers = {"0.pl.pool.ntp.org", "1.pl.pool.ntp.org", "pool.ntp.org"}});
     hi_ota_init(&(hi_ota_config_t) {.url = OTA_URL, .cert_pem = ota_cert_pem_start, .delete_after = true});
-    metrics_start(s_mqtt_pass);
     hi_auth_init(&(hi_auth_config_t) {
         .password_iterations = AUTH_PASSWORD_ITERATIONS,
         .password_salt_hex = AUTH_PASSWORD_SALT_HEX,
         .password_hash_hex = AUTH_PASSWORD_HASH_HEX,
         .admin_header_value = s_admin_header,
+        .readonly_header_value = s_readonly_header,
     });
     api_start();
+    metrics_start(s_mqtt_pass);
     hi_health_start(&(hi_health_config_t) {
         .is_healthy = healthy,
         .log_stats = log_stats,

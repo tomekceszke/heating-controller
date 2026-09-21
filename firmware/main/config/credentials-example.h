@@ -25,3 +25,8 @@
 /* Mosquitto on hc-data; MQTT_PASS is MQTT_DEVICE_PASS from server/secrets.env */
 #define MQTT_USER                   "heating-controller"
 #define MQTT_PASS                   ""
+
+/* Authorization header accepted on read-only /admin endpoints (the Homebridge bridge). Unlike
+ * HEADER_AUTHORIZATION_VALUE this one cannot change anything, reboot or start an OTA. Empty means
+ * read-only clients have no way in. */
+#define HEADER_AUTHORIZATION_READONLY_VALUE  ""
