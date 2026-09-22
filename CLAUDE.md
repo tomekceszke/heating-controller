@@ -147,7 +147,7 @@ Topics follow the owner's convention `<prefix>-heating-controller` and `<prefix>
 ```sh
 ../home-idf/tools/dev_proxy.py 192.168.11.249 --page firmware/web/app.html --name h-controller   # against a board
 tools/preview.py --board 2                                                                       # mocked, no board
-tools/preview.py --board 2 --scene history --shoot docs/img                                      # screenshots
+tools/preview.py --board 2 --scene history --shoot docs/img                                      # README screenshots (app-<board>-<scene>.png)
 ```
 
 Same layout as the other controllers (shared-main-view decision 2026-09-16): wordmark + status, headline, three
@@ -242,4 +242,4 @@ ESP32 x2
 - [ ] **ESP-IDF 6 readiness (2.1.0)**: replace the vendored legacy-RMT 1-Wire components with
   `espressif/onewire_bus` + `espressif/ds18b20`, verifying the sensor ids byte for byte on heating-controller-2
   first. See `firmware/docs/IDF6_MIGRATION.md`.
-- [ ] README with screenshots, as the other controllers have.
+- [x] README with screenshots, as the other controllers have (2026-09-22).

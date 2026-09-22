@@ -47,7 +47,7 @@ BOARDS = {
 }
 
 SYSTEM = {
-    "version": "2.0.0", "idf": "v5.4.2", "bootloader_idf": "v5.4.2", "partition": "ota_0",
+    "version": "2.1.0", "idf": "v5.4.2", "bootloader_idf": "v5.4.2", "partition": "ota_0",
     "pending_verify": False, "reset_reason": "power on", "uptime_s": 93600,
     "up_since": "2026-09-16 21:15", "time_synced": True, "ota_running": False,
     "heap_kb": {"free": 121, "min": 108},
@@ -106,8 +106,23 @@ def history(board):
     return {"period_s": 60, "newest": int(time.time()), "newest_age_s": 14, "series": out}
 
 
-def handler_for(board):
-    page = render_page.render((WEB / "app.html").read_text("utf-8"), NAME).encode("utf-8")
+SHOOT_INJECT = """
+<style>
+  html { zoom: @ZOOM@; }                       /* headless Chrome clamps the window to 500 px: zoom back to a phone */
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+</style>
+<script>
+  // The page polls /api/status every 5 s; under Chrome's virtual clock that loop never lets the shot happen.
+  (() => { const real = window.setTimeout; window.setTimeout = (fn, ms, ...rest) => (ms >= 2000 ? 0 : real(fn, ms, ...rest)); })();
+</script>
+"""
+
+
+def handler_for(board, shooting=False):
+    page = render_page.render((WEB / "app.html").read_text("utf-8"), NAME)
+    if shooting:
+        page = page.replace("</body>", SHOOT_INJECT.replace("@ZOOM@", f"{ZOOM:.5f}") + "</body>")
+    page = page.encode("utf-8")
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -124,7 +139,7 @@ def handler_for(board):
         def do_GET(self):
             path = self.path.split("?")[0]
             if path == "/api/session":
-                return self.send_json({"authenticated": True, "csrf": "preview", "version": "2.0.0"})
+                return self.send_json({"authenticated": True, "csrf": "preview", "version": "2.1.0"})
             if path == "/api/status":
                 return self.send_json(status(board))
             if path == "/api/events":
@@ -156,20 +171,38 @@ SCENES = {"live": "live", "history": "history", "settings": "settings"}
 
 
 def shoot(port, out_dir, board, scene):
-    """One scene per process: the page polls forever, so Chrome is given a hard time budget."""
+    """Chrome writes the file and then hangs on this machine, so it is killed once the image stops growing."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / f"app-{board}-{scene}.png"
+    raw = target.with_suffix(".raw.png")
+    raw.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory() as profile:
-        target = out_dir / f"app-{board}-{scene}.png"
-        subprocess.run([
+        chrome = subprocess.Popen([
             CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
             f"--user-data-dir={profile}",
-            f"--window-size={MIN_VIEWPORT},{int(HEIGHT * ZOOM)}",
-            f"--force-device-scale-factor={SCALE / ZOOM}",
-            "--virtual-time-budget=3000",
-            f"--screenshot={target}",
+            f"--window-size={MIN_VIEWPORT},{round(HEIGHT * ZOOM)}",
+            f"--force-device-scale-factor={SCALE}",
+            "--virtual-time-budget=4000",
+            f"--screenshot={raw}",
             f"http://127.0.0.1:{port}/#{scene}",
-        ], check=True, capture_output=True, timeout=60)
-        print(target)
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline, size = time.time() + 90, -1
+        while time.time() < deadline:
+            time.sleep(0.5)
+            now = raw.stat().st_size if raw.exists() else -1
+            if now > 0 and now == size:
+                break
+            size = now
+            if chrome.poll() is not None:
+                break
+        chrome.kill()
+        chrome.wait()
+    if not raw.exists():
+        raise SystemExit(f"{scene}: Chrome produced no image")
+    subprocess.run(["sips", "-z", str(HEIGHT * SCALE), str(WIDTH * SCALE), str(raw), "--out", str(target)],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    raw.unlink()
+    print(target)
 
 
 def main():
@@ -180,7 +213,7 @@ def main():
     ap.add_argument("--scene", default="live", choices=tuple(SCENES))
     args = ap.parse_args()
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(args.board))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(args.board, bool(args.shoot)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{args.port}/"
     if args.shoot:
