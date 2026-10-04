@@ -218,6 +218,16 @@ ESP32 x2
   `nc -ul 1340` there gets nothing, because that service already holds the port. The script line-buffers its
   output since 2026-09-21; without that, journald showed nothing until a few KB had built up.
 
+## Related projects
+
+- `../heatronic-controller/` (started 2026-10-04): a read-only ESP32-C3 on the gas boiler's Heatronic 3 bus, next to
+  the FW100. It reports the boiler's own flow/return temperatures, the AF outdoor sensor, the FW100's requested flow
+  temperature, burner modulation, flame, pump and DHW. Cross-checks both ways: **Heater supply** `370000001287ce28`
+  / **Heater return** `5900000008f0a828` against the boiler's flow/return, **Outdoor** `9b00000009029f28` against
+  the AF sensor; this history (since 2023) gives the heating curve a baseline. Its stage 3 backend follows this
+  repository's hc-data pattern (Mosquitto fragments, ingest with manual ack, PostgreSQL roles).
+- `../floor-heating-controller/`: pump on the floor circuit fed from the same boiler supply through a mixer.
+
 ## Rules
 
 - **NEVER** commit or stage: `firmware/certs/*`, `firmware/main/config/credentials.h`, `gcp/keys/`,
