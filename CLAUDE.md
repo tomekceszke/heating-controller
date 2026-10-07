@@ -227,6 +227,10 @@ ESP32 x2
   / **Heater return** `5900000008f0a828` against the boiler's flow/return, **Outdoor** `9b00000009029f28` against
   the AF sensor; this history (since 2023) gives the heating curve a baseline. Its stage 3 backend follows this
   repository's hc-data pattern (Mosquitto fragments, ingest with manual ack, PostgreSQL roles).
+  **heating-controller-1 is to be replaced by it** (owner's decision 2026-10-07): until then both boards share one
+  5 V supply and the box at the boiler; in heatronic's stage 3 its board takes over hc-1's three sensors on the same
+  MQTT contract `heating/<mac>/temp/<sensor_id>` (history continues, only `device` changes) and serves `/sensor` for
+  the Ulanzi clock, which is repointed from .248 to .246. hc-2 is unaffected.
 - `../floor-heating-controller/`: pump on the floor circuit fed from the same boiler supply through a mixer.
 
 ## Rules
