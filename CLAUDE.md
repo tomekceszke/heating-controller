@@ -6,9 +6,10 @@ notifications and the web app must never weaken it.**
 
 ## Status
 
-- **Both boards run firmware 2.0.3** and collect normally: hc-1 (3 sensors) and hc-2 (7 sensors, refitted
-  2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout with native rollback.
-  Migration story in `docs/IDF5_MIGRATION.md`.
+- **Both boards run firmware 2.1.0** (OTA 2026-09-21, hc-2 10:28, hc-1 10:53; sha256 `4b024ea2…`, commit `d8bfd59`:
+  retained MQTT state topic, read-only admin key; home-idf v0.1.13) and collect normally: hc-1 (3 sensors) and hc-2
+  (7 sensors, refitted 2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout
+  with native rollback. Migration story in `docs/IDF5_MIGRATION.md`.
 - The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
   publishing deliberately, and remember both boards poll the same file name.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
