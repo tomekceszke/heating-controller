@@ -20,6 +20,36 @@ CREATE TABLE IF NOT EXISTS temperature_raw (
 
 CREATE INDEX IF NOT EXISTS temperature_raw_ts_brin ON temperature_raw USING brin (ts);
 
+-- Sensor errors from the legacy firmware (-2048 °C, the outdoor sensor's 85 °C power-on value) came in with the
+-- BigQuery history. They are copied here with a reason; temperature_raw only accepts the DS18B20 range
+-- (-55..125 °C, the same bounds as hc_ingest.py, which drops anything outside before inserting).
+CREATE TABLE IF NOT EXISTS temperature_rejected (
+    ts        timestamptz NOT NULL,
+    sensor_id text        NOT NULL,
+    value     double precision,
+    device    text,
+    reason    text        NOT NULL,
+    moved_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (sensor_id, ts)
+);
+
+INSERT INTO temperature_rejected (ts, sensor_id, value, device, reason)
+SELECT t.ts, t.sensor_id, t.value, t.device,
+       CASE WHEN t.value = 85 THEN 'outdoor 85 °C (DS18B20 power-on value)' ELSE 'outside the DS18B20 range' END
+FROM temperature_raw t
+WHERE t.value NOT BETWEEN -55 AND 125
+   OR (t.value = 85 AND t.sensor_id IN (SELECT sensor_id FROM sensor WHERE location = 'OUTDOOR'))
+ON CONFLICT (sensor_id, ts) DO NOTHING;
+
+-- NOT VALID: enforced for new rows at once; VALIDATE CONSTRAINT once the copied rows are gone from temperature_raw
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'temperature_raw_value_range') THEN
+        ALTER TABLE temperature_raw
+            ADD CONSTRAINT temperature_raw_value_range CHECK (value BETWEEN -55 AND 125) NOT VALID;
+    END IF;
+END $$;
+
 -- Views keep BigQuery names and columns. "timestamp" is Europe/Warsaw local time (timestamp without tz).
 
 CREATE OR REPLACE VIEW temperature AS
