@@ -27,6 +27,7 @@ STATUS_TOPIC = "heating/+/status"
 SENSOR_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 MIN_TS = 1577836800                                    # 2020-01-01: older means clock not synced
 MAX_FUTURE_S = 86400
+VALUE_MIN, VALUE_MAX = -55.0, 125.0                    # DS18B20 range; the CHECK on temperature_raw.value
 
 INSERT_SQL = """
     INSERT INTO temperature_raw (ts, sensor_id, value, device)
@@ -53,6 +54,9 @@ def parse_reading(topic, payload):
         raise ValueError(f"ts out of range: {ts}")
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
         raise ValueError("value not a finite number")
+    if not VALUE_MIN <= value <= VALUE_MAX:
+        # Must stay in step with the table's CHECK, or the insert fails and the message is redelivered forever
+        raise ValueError(f"value out of sensor range: {value}")
     return ts, sensor_id, float(value), device
 
 
