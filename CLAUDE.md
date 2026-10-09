@@ -184,7 +184,8 @@ OTA server and UDP log server stay on 192.168.11.15.
 | `hc-pg-backup.timer` | nightly `pg_dump -Fc` to `/var/backups/heating`, 14 days kept |
 
 Schema (`server/db/schema.sql`): `temperature_raw(ts timestamptz, sensor_id, value, device)`, PK `(sensor_id, ts)`
-(dedups redeliveries); `sensor` metadata; views ported from BigQuery (`temperature`, `temperature_last1h|6h`,
+(dedups redeliveries), CHECK value −55..125 °C (`hc_ingest.py` drops anything outside first); `temperature_rejected`: the
+legacy history's sensor errors (−2048 °C, outdoor 85 °C) with a reason; `sensor` metadata; views ported from BigQuery (`temperature`, `temperature_last1h|6h`,
 `temperature_outdoor[_recent]`, `temperature_power_recent`; `timestamp` column = Europe/Warsaw local time).
 `device` is the publisher MAC (`2462abf200dc` = hc-1, `ec626083a66c` = hc-2), NULL for imported history.
 The `sensor` table is the source of truth for labels; `firmware/main/config/devices.h` mirrors it so the app can
