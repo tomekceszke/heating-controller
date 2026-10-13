@@ -197,7 +197,7 @@ OTA server and UDP log server stay on 192.168.11.15.
 
 | Service | Details |
 |---|---|
-| `mosquitto` | :1883, no anonymous; shared with water-controller: `install.sh` writes `/etc/mosquitto/{passwd.d/heating,acl.d/heating.acl}` and concatenates all fragments (never write `/etc/mosquitto/passwd` directly, it would drop the water users); users `heating-controller` (write `heating/+/temp/+`, rw `heating/+/status`) and `hc-ingest` (read `heating/#`); persistence on |
+| `mosquitto` | :1883, no anonymous; shared with water-controller: `install.sh` writes `/etc/mosquitto/{passwd.d/heating,acl.d/heating.acl}` and concatenates all fragments (never write `/etc/mosquitto/passwd` directly, it would drop the water users); users `heating-controller` (write `heating/+/temp/+`, rw `heating/+/status`) and `hc-ingest` (read `heating/#`, plus `heatronic/+/temp/+` from heatronic.acl: heatronic-controller now reads hc-1's sensors); persistence on |
 | `postgresql` (17) | DB `heating`, UTF-8. Roles: `hc_ingest` (peer auth, INSERT), `hc_read` (password, SELECT, from 192.168.11.0/24 — DataGrip) |
 | `hc-ingest` | `server/ingest/hc_ingest.py` in `/opt/hc-server/venv`; persistent MQTT session + manual ack after DB commit → at-least-once; malformed messages logged and dropped |
 | `hc-pg-backup.timer` | nightly `pg_dump -Fc` to `/var/backups/heating`, 14 days kept |

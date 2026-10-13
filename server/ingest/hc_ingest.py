@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """MQTT -> PostgreSQL bridge for heating-controller temperature readings.
 
-Subscribes to heating/<device>/temp/<sensor_id> with a persistent session and manual
+Subscribes to heating/<device>/temp/<sensor_id> (and heatronic/<device>/temp/<sensor_id>: heatronic-controller took
+over heating-controller-1's sensors at the boiler in 2026-10) with a persistent session and manual
 acks: a reading is acked only after it is committed, so the broker redelivers anything
 lost to a crash or DB outage. The (sensor_id, ts) primary key absorbs duplicates.
 """
@@ -22,7 +23,7 @@ MQTT_USER = "hc-ingest"
 MQTT_PASS = os.environ["MQTT_INGEST_PASS"]
 PG_DSN = os.environ.get("PG_DSN", "dbname=heating")   # peer auth over the local socket
 
-TEMP_TOPIC = "heating/+/temp/+"
+TEMP_TOPICS = ("heating/+/temp/+", "heatronic/+/temp/+")   # same payload; the device column tells them apart
 STATUS_TOPIC = "heating/+/status"
 SENSOR_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 MIN_TS = 1577836800                                    # 2020-01-01: older means clock not synced
@@ -81,7 +82,7 @@ class Ingest:
             log.error("MQTT connect failed: %s", reason_code)
             return
         log.info("MQTT connected (session present: %s)", flags.session_present)
-        client.subscribe([(TEMP_TOPIC, 1), (STATUS_TOPIC, 1)])
+        client.subscribe([(t, 1) for t in TEMP_TOPICS] + [(STATUS_TOPIC, 1)])
 
     def on_disconnect(self, client, userdata, flags, reason_code, properties):
         log.warning("MQTT disconnected: %s", reason_code)
