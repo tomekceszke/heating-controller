@@ -38,6 +38,25 @@ One binary runs on both boards; everything board-specific is picked at runtime b
 
 DHCP reservations, ESP32 range 192.168.11.240–254. Target chip **ESP32**, 4 MB flash (DIO, 40 MHz).
 
+### Sensor positions (owner, 2026-10-13)
+
+All DS18B20s are bare strap-ons (cable ties, no insulation), so they read low: about 2 K under the water on copper,
+4–5 K on the alu-pex 16 at 36 °C flow, and the pex ones lag by minutes. Pipes from the boiler to the manifolds are
+soldered copper 22 mm OD; every loop and radiator connection is alu-pex 16.
+
+| Sensor | Id | Position |
+|---|---|---|
+| Heater supply / return (hc-1) | `370000001287ce28` / `5900000008f0a828` | boiler pipes at the boiler (exact spot not given) |
+| Outdoor (hc-1) | `9b00000009029f28` | outside |
+| Floor supply (hc-2) | `7100000008ece828` | floor pump set (Prandelli RPM-R, garage), copper boiler supply **before** the thermostatic injection valve, next to floor-heating-controller's sensor: boiler water, not the floor's |
+| Floor return | `a60416586fb5ff28` | the set's copper return to the boiler, right after the last valve (return regulating valve 7). It leaves the set's **upper** bar, so it carries mixed floor-supply water (~29 °C), not the loops' return |
+| Hallway floor supply / return | `77041469f284ff28` / `f10316555c4bff28` | the middle loop (hall) at the floor set, alu-pex 16: supply on the pipe from the upper bar (flow meters), return on the pipe into the lower bar. The only sensors after the mixing |
+| Kitchen radiators supply / return | `2800000008efc028` / `39000000150fc228` | the kitchen radiator's pair at the ground floor radiator manifold (garage), alu-pex 16 |
+| Radiators return | `b700000014e83928` | that manifold's copper 22 return, after the last valve; its supply has no sensor (about the floor set's) |
+
+Details and the readings against the boiler's own flow sensor: `../heatronic-controller/docs/INSTALLATION.md`,
+Measurement points.
+
 ## Firmware
 
 ### Commands
