@@ -48,6 +48,7 @@ soldered copper 22 mm OD; every loop and radiator connection is alu-pex 16.
 |---|---|---|
 | Heater supply / return (hc-1) | `370000001287ce28` / `5900000008f0a828` | boiler pipes at the boiler, heating side after the 3-way valve (exact spot not given). **Supply to be re-mounted** (owner, 2026-10-13): 2 K under the floor set's supply sensor 4.5 m downstream |
 | Outdoor (hc-1) | `9b00000009029f28` | outside |
+| DHW coil supply / return (heatronic) | `5f0625920d100f28` / `030625922cad0f28` | the cylinder coil's upper / lower connection pipes, since 2026-10-14 23:21 on heatronic-controller's GPIO10 bus; `sensor` rows DHW / COIL / POWER, BACK (12, 13). Which is which inferred from the idle readings (upper warmer), to be confirmed at the first DHW charge |
 | Floor supply (hc-2) | `7100000008ece828` | floor pump set (Prandelli RPM-R, garage), copper boiler supply **before** the thermostatic injection valve, next to floor-heating-controller's sensor: boiler water, not the floor's |
 | Floor return | `a60416586fb5ff28` | the set's copper return to the boiler, right after the last valve (return regulating valve 7). It leaves the set's **upper** bar, so it carries mixed floor-supply water (~29 °C), not the loops' return |
 | Hallway floor supply / return | `77041469f284ff28` / `f10316555c4bff28` | the middle loop (hall) at the floor set, alu-pex 16: supply on the pipe from the upper bar (flow meters), return on the pipe into the lower bar. The only sensors after the mixing |
