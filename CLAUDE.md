@@ -10,6 +10,10 @@ notifications and the web app must never weaken it.**
   retained MQTT state topic, read-only admin key; home-idf v0.1.13) and collect normally: hc-1 (3 sensors) and hc-2
   (7 sensors, refitted 2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout
   with native rollback. Migration story in `docs/IDF5_MIGRATION.md`.
+- 2026-10-15 14:10: **hc-2 on firmware 2.2.0** over OTA (single install; hc-1 is off since the heatronic move):
+  sensors read every 5 s, sent on a 0.2 °C change or 55 s after the last send (home-idf v0.1.17 `hi_deadband`).
+  Built by `tools/build_release.sh` from the sibling home-idf checkout at tag v0.1.17 before the tag was pushed;
+  `dependencies.lock` follows once it is.
 - The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
   publishing deliberately, and remember both boards poll the same file name.
 - Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
