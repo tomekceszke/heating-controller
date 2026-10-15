@@ -74,7 +74,7 @@ def status(board):
                        for c, u, v in zip(captions, units, values)],
         "mqtt": {"connected": True, "outbox_bytes": 0, "outbox_limit_bytes": 24576,
                  "broker": "mqtt://192.168.11.16:1883"},
-        "sample_period_s": 60, "system": SYSTEM,
+        "sample_period_s": 5, "send_delta_c": 0.2, "send_max_gap_s": 60, "system": SYSTEM,
     }
 
 

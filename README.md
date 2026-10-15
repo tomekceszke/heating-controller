@@ -52,7 +52,7 @@ circuits mirror the `sensor` table in the database, so the app can name every se
 
 ```mermaid
 flowchart LR
-    bus([1-Wire bus<br/>DS18B20 x3 / x7]) --> task[Sensor task<br/>every 60 s, task watchdog]
+    bus([1-Wire bus<br/>DS18B20 x3 / x7]) --> task[Sensor task<br/>every 5 s, task watchdog]
     task -. post, never blocks .-> q[(queue)]
     q --> mqtt[MQTT task] -- "QoS 1<br/>heating/&lt;mac&gt;/temp/&lt;id&gt;" --> broker[Mosquitto<br/>hc-data]
     broker --> ingest[hc-ingest<br/>ack after commit] --> pg[(PostgreSQL<br/>temperature_raw)]
@@ -111,7 +111,7 @@ MQTT topics:
 
 | Topic | Payload |
 |---|---|
-| `heating/<mac>/temp/<sensor_id>` | `{"ts":<unix>,"value":<°C>}`, one per sensor per minute, QoS 1 |
+| `heating/<mac>/temp/<sensor_id>` | `{"ts":<unix>,"value":<°C>}`, QoS 1: on a change of 0.2 °C, at least once a minute per sensor (2.2.0) |
 | `heating/<mac>/status` | `online` / `offline`, retained, last will |
 | `heating/<mac>/state` | the full status document, retained, refreshed every minute (2.1.0) |
 
@@ -123,7 +123,7 @@ Details: [server/README.md](server/README.md).
 |---|---|
 | Module | ESP32, 4 MB flash (DIO, 40 MHz), two boards |
 | Sensors | DS18B20 on 1-Wire, GPIO4, RMT driver (vendored `esp32-owb` and `esp32-ds18b20`) |
-| Sampling | every 60 s, one row per sensor per minute |
+| Sampling | read every 5 s; sent on a change of 0.2 °C or 55 s after the last send (home-idf `hi_deadband`), so a row at least once a minute and a burner run at 5 s (every 60 s before 2.2.0) |
 
 The RMT driver is kept on purpose: a bit-banged 1-Wire driver found only 1 of the 7 sensors on board 2's long bus.
 USB is the recovery path: hold **IO0**, press and release **EN**, release **IO0**, then flash bootloader, table and

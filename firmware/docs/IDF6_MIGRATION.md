@@ -42,7 +42,7 @@ says CPU-delay timing "proved to be too unreliable". Do not use it for this proj
    The new API docs do not state the 64-bit layout of `onewire_device_address_t`; verify the new build prints
    exactly the known IDs below before trusting it.
 4. Test on **heating-controller-2 first** (7-sensor bus = the hard case). Pass: 7/7 found, 0 read errors,
-   per-sensor error counters flat over 24 h, readings arriving in hc-data (`temperature_raw`, one row per sensor per minute). Fail → OTA the known-good image back.
+   per-sensor error counters flat over 24 h, readings arriving in hc-data (`temperature_raw`, at least one row per sensor per minute). Fail → OTA the known-good image back.
 5. Then heating-controller-1, delete `components/esp32-owb` + `components/esp32-ds18b20`.
 6. Only then bump ESP-IDF to 6.x (check the 6.0 migration guide for the rest: e.g. cJSON/`json` component
    moved to the registry, other legacy drivers removed — this project uses none of those).

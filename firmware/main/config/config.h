@@ -9,16 +9,20 @@
 #define MAX_DEVICES                     8       // max sensors on the bus (7 on heating-controller-2)
 #define DS18B20_RESOLUTION              DS18B20_RESOLUTION_12_BIT
 #define TEMP_SENSOR_SCAN_RETRY_S        30      // rescan interval while no sensor answers
-#define SAMPLE_PERIOD_S                 60      // seconds between sensor reads (one row per sensor per minute)
-#define SENSOR_FAIL_READS               3       // consecutive bad reads before the sensor counts as lost
+#define READ_PERIOD_S                   5       // seconds between sensor reads: a burner run of ~3 min is ~36 reads
+#define SEND_DELTA_C                    0.2f    // a reading is sent on this change from the last one sent (hi_deadband)
+#define SEND_MAX_GAP_S                  55      // ...or this long after it: with 5 s reads, a row at least every 60 s
+#define SENSOR_LOST_AFTER_S             180     // failing this long in a row: the sensor counts as lost
+#define SENSOR_FAIL_READS               (SENSOR_LOST_AFTER_S / READ_PERIOD_S)
+#define SENSOR_ALIVE_S                  30      // a cycle at least this often: the sensor task is alive (hi_health)
 #define INVALID_TEMPERATURE_INDICATOR   (-273)  // sentinel in /sensor responses, kept for the ulanzi display
 
 /* MQTT (metrics to the hc-data broker; user/pass in credentials.h) */
 #define MQTT_BROKER_URI                 "mqtt://192.168.11.16:1883"
 #define MQTT_TOPIC_PREFIX               "heating"
-#define MQTT_OUTBOX_LIMIT_BYTES         24576   // ~40 min of buffered readings for 7 sensors
+#define MQTT_OUTBOX_LIMIT_BYTES         24576   // ~40 min of 7 quiet sensors (a row a minute), less while they change
 #define METRICS_QUEUE_LEN               32      // handover to the metrics task; the outbox does the real buffering
-#define MQTT_STATE_PERIOD_S             60      // retained heating/<mac>/state refresh; matches SAMPLE_PERIOD_S
+#define MQTT_STATE_PERIOD_S             60      // retained heating/<mac>/state refresh
 
 /* EVENTS / HISTORY (RAM only; PostgreSQL on hc-data keeps the real history) */
 #define EVENTS_RING_SIZE                50

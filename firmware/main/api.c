@@ -148,7 +148,9 @@ cJSON *api_status_json(void)
     cJSON_AddNumberToObject(mqtt, "outbox_limit_bytes", MQTT_OUTBOX_LIMIT_BYTES);
     cJSON_AddStringToObject(mqtt, "broker", MQTT_BROKER_URI);
 
-    cJSON_AddNumberToObject(root, "sample_period_s", SAMPLE_PERIOD_S);
+    cJSON_AddNumberToObject(root, "sample_period_s", READ_PERIOD_S);
+    cJSON_AddNumberToObject(root, "send_delta_c", SEND_DELTA_C);
+    cJSON_AddNumberToObject(root, "send_max_gap_s", SEND_MAX_GAP_S + READ_PERIOD_S);
     hi_httpd_add_system_status(cJSON_AddObjectToObject(root, "system"));
     return root;
 }

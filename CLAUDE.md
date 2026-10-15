@@ -131,7 +131,13 @@ task stalls it for `CONFIG_MQTT_NETWORK_TIMEOUT_MS` whenever the broker is unrea
 
 The sensor task is the only code that touches the 1-Wire bus in a loop; `hi_health`'s predicate is
 `sensor_alive() && hi_wifi_is_connected()`, so a stalled task rolls a fresh image back, and the task watchdog
-(90 s, above `SAMPLE_PERIOD_S`) reboots a hung one.
+(90 s) reboots a hung one.
+
+Since 2.2.0 the task reads every `READ_PERIOD_S` (5 s) and sends a reading through `hi_deadband` (home-idf 0.1.17):
+on a change of `SEND_DELTA_C` (0.2 °C) from the last one sent, or `SEND_MAX_GAP_S` (55 s) after it, so each sensor
+has a row at least once a minute. Rows in `temperature_raw` are therefore unevenly spaced: average over time
+buckets, not over rows. A sensor counts as lost after `SENSOR_LOST_AFTER_S` (180 s) of failed reads, as before;
+the RAM history stays one column a minute.
 
 Sensor IDs are 16 lowercase hex chars, ROM bytes 7→0 (e.g. `9b00000009029f28`), from `owb_string_from_rom_code()`.
 They are keys in PostgreSQL `temperature_raw` (history since 2023) — **do not change the format**. Slots are

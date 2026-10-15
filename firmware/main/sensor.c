@@ -11,6 +11,7 @@
 #include "owb.h"
 #include "owb_rmt.h"
 #include "ds18b20.h"
+#include "hi_deadband.h"
 
 #include "config/config.h"
 #include "device.h"
@@ -60,6 +61,7 @@ typedef struct {
 static portMUX_TYPE s_state_mux = portMUX_INITIALIZER_UNLOCKED;
 static slot_state_t s_state[MAX_DEVICES];
 static volatile int64_t s_last_cycle_mono_s = 0;
+static hi_deadband_t s_send[MAX_DEVICES];   // sensor task only
 
 static const char *ds18b20_error_str(DS18B20_ERROR error)
 {
@@ -191,8 +193,8 @@ bool sensor_alive(void)
      * useless but not unhealthy, and rolling back would not give it its sensors either. Scanning an
      * empty bus therefore counts as alive, so hi_health verifies the image instead of ping-ponging
      * between two builds that both find nothing. */
-    // One missed cycle is tolerated; a 1-Wire read plus the MQTT enqueue is well under a second
-    return s_last_cycle_mono_s > 0 && (events_mono_s() - s_last_cycle_mono_s) < (2 * SAMPLE_PERIOD_S);
+    // A cycle is ~1 s; several missed ones (an HTTP read holding the bus) are tolerated
+    return s_last_cycle_mono_s > 0 && (events_mono_s() - s_last_cycle_mono_s) < SENSOR_ALIVE_S;
 }
 
 size_t sensor_snapshot(sensor_status_t *out, size_t max)
@@ -216,8 +218,8 @@ size_t sensor_snapshot(sensor_status_t *out, size_t max)
 }
 
 /* Records one cycle's result for a slot and raises lost/recovered events. Returns the slot's
- * cumulative error count. */
-static uint32_t record_read(size_t slot, bool ok, int16_t temp_x10, int64_t now)
+ * cumulative error count; *fails_in_row gets the failures in a row up to this read. */
+static uint32_t record_read(size_t slot, bool ok, int16_t temp_x10, int64_t now, uint16_t *fails_in_row)
 {
     bool became_lost = false;
     bool recovered = false;
@@ -242,6 +244,7 @@ static uint32_t record_read(size_t slot, bool ok, int16_t temp_x10, int64_t now)
         }
     }
     errors = st->errors;
+    *fails_in_row = st->fails_in_row;
     portEXIT_CRITICAL(&s_state_mux);
 
     if (became_lost || recovered) {
@@ -306,6 +309,7 @@ static void sensor_task(void *arg)
 
     vTaskDelay(pdMS_TO_TICKS(2000));    // settle time after resolution setup (as in the original firmware)
     last_wake_time = xTaskGetTickCount();
+    int64_t history_mono_s = 0;
 
     while (1) {
         esp_task_wdt_reset();
@@ -338,18 +342,26 @@ static void sensor_task(void *arg)
         for (size_t i = 0; i < count; ++i) {
             const bool ok = errors[i] == DS18B20_OK;
             const int16_t temp_x10 = ok ? (int16_t) lroundf(readings[i] * 10.0f) : 0;
-            const uint32_t error_count = record_read(i, ok, temp_x10, mono);
+            uint16_t fails_in_row;
+            const uint32_t error_count = record_read(i, ok, temp_x10, mono, &fails_in_row);
             if (!ok) {
-                ESP_LOGE(TAG, "%s: read failed: %s [%" PRIu32 " errors]",
-                         s_ids[i], ds18b20_error_str(errors[i]), error_count);
+                hi_deadband_reset(&s_send[i]);      // the next good reading is sent whatever its value
+                if ((fails_in_row - 1) % (60 / READ_PERIOD_S) == 0) {    // first of a run, then once a minute
+                    ESP_LOGE(TAG, "%s: read failed: %s [%" PRIu32 " errors]",
+                             s_ids[i], ds18b20_error_str(errors[i]), error_count);
+                }
                 continue;
             }
             history_row[i] = temp_x10;
+            if (!hi_deadband_due(&s_send[i], readings[i], (uint32_t) mono, SEND_DELTA_C, SEND_MAX_GAP_S)) continue;
             ESP_LOGI(TAG, "%s: %.4f C [%" PRIu32 " errors]", s_ids[i], readings[i], error_count);
             // Non-blocking handover: the metrics task owns everything that can wait on the network
             metrics_post(mono, s_ids[i], readings[i]);
         }
-        history_add(history_row, count);
+        if (history_mono_s == 0 || mono - history_mono_s >= HISTORY_PERIOD_S) {
+            history_add(history_row, count);
+            history_mono_s = mono;
+        }
         s_last_cycle_mono_s = mono;
 
         // Every sensor gone usually means the bus came back different: rescan, keeping known slots
@@ -363,7 +375,7 @@ static void sensor_task(void *arg)
             }
         }
 
-        wait_feeding_wdt(&last_wake_time, SAMPLE_PERIOD_S * 1000);
+        wait_feeding_wdt(&last_wake_time, READ_PERIOD_S * 1000);
     }
 }
 

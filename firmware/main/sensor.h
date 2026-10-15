@@ -20,8 +20,8 @@ typedef struct {
     bool lost;                  // SENSOR_FAIL_READS failures in a row
 } sensor_status_t;
 
-/* Creates the sensor task: it discovers the bus (retrying forever while it is empty) and then samples
- * every SAMPLE_PERIOD_S. Never blocks the caller, so app_main can finish booting without sensors. */
+/* Creates the sensor task: it discovers the bus (retrying forever while it is empty) and then reads it every
+ * READ_PERIOD_S; a reading is sent on a change of SEND_DELTA_C or after SEND_MAX_GAP_S (hi_deadband). Never blocks the caller, so app_main can finish booting without sensors. */
 void sensor_start(void);
 
 /* True once the task has completed a cycle recently; the hi_health predicate. */
