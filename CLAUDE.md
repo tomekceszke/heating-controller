@@ -1,11 +1,23 @@
-# heating-controller
+# sensors-controller
 
-IoT heating monitor: **two ESP32 boards** read DS18B20 temperature sensors and publish readings over MQTT to a local
-Mosquitto + PostgreSQL backend (Proxmox CT `hc-data`, 192.168.11.16). **Collecting readings is the product: the UI,
+Pipe temperature monitor (formerly **heating-controller**, renamed 2026-10-19): an ESP32 board reads DS18B20
+sensors at the floor pump set and the radiator manifold and publishes readings over MQTT to a local Mosquitto +
+PostgreSQL backend (Proxmox CT `hc-data`, 192.168.11.16). Board 1 (sc-1, formerly hc-1) is retired: its three
+sensors at the boiler moved to `../heatronic-controller/` on 2026-10-15. **Collecting readings is the product: the UI,
 notifications and the web app must never weaken it.**
 
 ## Status
 
+- **Rename 2026-10-19** (owner): heating-controller → sensors-controller, everywhere: repository, firmware 2.3.0
+  (`project(sensors-controller)`, OTA file `sensors-controller.bin`, hostname `s-controller-2`, label „Sensors 2”,
+  MQTT user `sensors-controller`, topics `sensors/<mac>/…`), broker fragments `sensors`, database `heating` →
+  `sensors`, roles `hc_ingest`/`hc_read` → `sc_ingest`/`sc_read`, `hc-ingest`/`hc-pg-backup` → `sc-ingest`/
+  `sc-pg-backup`, `/opt|/etc/hc-server` → `sc-server`, `/var/backups/heating` → `sensors`, Grafana datasource
+  `sensors`. Unchanged: `/etc/mosquitto/conf.d/hc.conf` (whole broker; changing it needs a restart), the ntfy
+  topics (secrets), the payload, tables and views, the migrator (`heating-migrator`, a legacy one-shot). Older
+  entries below keep the old names (hc-1, hc-2 = sc-1, sc-2). `heating/#` stays readable for `sc-ingest` until
+  the board runs 2.3.0 and the retained `heating/…` topics are cleared (transitional lines in
+  `server/mosquitto/sensors.acl` and `server/ingest/sc_ingest.py`).
 - **Both boards run firmware 2.1.0** (OTA 2026-09-21, hc-2 10:28, hc-1 10:53; sha256 `4b024ea2…`, commit `d8bfd59`:
   retained MQTT state topic, read-only admin key; home-idf v0.1.13) and collect normally: hc-1 (3 sensors) and hc-2
   (7 sensors, refitted 2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout
@@ -15,10 +27,10 @@ notifications and the web app must never weaken it.**
   Built by `tools/build_release.sh` from the sibling home-idf checkout at tag v0.1.17 before the tag was pushed;
   `dependencies.lock` follows once it is.
 - The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
-  publishing deliberately, and remember both boards poll the same file name.
-- Updates from now on: `tools/build_release.sh`, publish `releases/heating-controller.bin` as
-  `heating-controller.bin` on the OTA server, `POST /admin/su` (or the app's Settings tab) — **one board at a time**,
-  because both poll the same file name and the download deletes it.
+  publishing deliberately.
+- Updates from now on: `tools/build_release.sh`, publish `releases/sensors-controller.bin` as
+  `sensors-controller.bin` on the OTA server, `POST /admin/su` (or the app's Settings tab); the download deletes
+  it. A board still on 2.2.0 or older polls `heating-controller.bin`: publish 2.3.0 under that old name.
 
 ## Repository structure
 
@@ -32,13 +44,13 @@ gcp/        # LEGACY: old Cloud Functions + service account keys (gitignored); d
 
 ## Devices
 
-One binary runs on both boards; everything board-specific is picked at runtime by STA MAC in
+One binary for every board; everything board-specific is picked at runtime by STA MAC in
 `firmware/main/config/devices.h` (hostname, app headline, ntfy title, the three Live numbers).
 
 | Name | IP | MAC | Hostname | Sensors |
 |---|---|---|---|---|
-| heating-controller-1 | `192.168.11.248` | `24:62:AB:F2:00:DC` | `h-controller-1` | 3, incl. outdoor `9b00000009029f28` |
-| heating-controller-2 | `192.168.11.249` | `EC:62:60:83:A6:6C` | `h-controller-2` | 7 |
+| sensors-controller-1 (sc-1, retired 2026-10-15) | `192.168.11.248` | `24:62:AB:F2:00:DC` | `s-controller-1` | none (its 3 moved to heatronic) |
+| sensors-controller-2 (sc-2) | `192.168.11.249` | `EC:62:60:83:A6:6C` | `s-controller-2` | 7 |
 
 DHCP reservations, ESP32 range 192.168.11.240–254. Target chip **ESP32**, 4 MB flash (DIO, 40 MHz).
 
@@ -50,10 +62,10 @@ soldered copper 22 mm OD; every loop and radiator connection is alu-pex 16.
 
 | Sensor | Id | Position |
 |---|---|---|
-| Heater supply / return (hc-1) | `370000001287ce28` / `5900000008f0a828` | boiler pipes at the boiler, heating side after the 3-way valve (exact spot not given). **Supply to be re-mounted** (owner, 2026-10-13): 2 K under the floor set's supply sensor 4.5 m downstream |
-| Outdoor (hc-1) | `9b00000009029f28` | outside |
+| Heater supply / return (heatronic, formerly hc-1) | `370000001287ce28` / `5900000008f0a828` | boiler pipes at the boiler, heating side after the 3-way valve (exact spot not given). **Supply to be re-mounted** (owner, 2026-10-13): 2 K under the floor set's supply sensor 4.5 m downstream |
+| Outdoor (heatronic, formerly hc-1) | `9b00000009029f28` | outside |
 | DHW coil supply / return (heatronic) | `5f0625920d100f28` / `030625922cad0f28` | the cylinder coil's upper / lower connection pipes, since 2026-10-14 23:21 on heatronic-controller's GPIO10 bus; `sensor` rows DHW / COIL / POWER, BACK (12, 13). Which is which inferred from the idle readings (upper warmer), to be confirmed at the first DHW charge |
-| Floor supply (hc-2) | `7100000008ece828` | floor pump set (Prandelli RPM-R, garage), copper boiler supply **before** the thermostatic injection valve, next to floor-heating-controller's sensor: boiler water, not the floor's |
+| Floor supply (sc-2) | `7100000008ece828` | floor pump set (Prandelli RPM-R, garage), copper boiler supply **before** the thermostatic injection valve, next to floor-heating-controller's sensor: boiler water, not the floor's |
 | Floor return | `a60416586fb5ff28` | the set's copper return to the boiler, right after the last valve (return regulating valve 7). It leaves the set's **upper** bar, so it carries mixed floor-supply water (~29 °C), not the loops' return |
 | Hallway floor supply / return | `77041469f284ff28` / `f10316555c4bff28` | the middle loop (hall) at the floor set, alu-pex 16: supply on the pipe from the upper bar (flow meters), return on the pipe into the lower bar. The only sensors after the mixing |
 | Kitchen radiators supply / return | `2800000008efc028` / `39000000150fc228` | the kitchen radiator's pair at the ground floor radiator manifold (garage), alu-pex 16 |
@@ -98,7 +110,7 @@ tools/preview.py --board 2                 # the app with mocked API data, no de
 3. **1-Wire drivers** — vendored in `firmware/components/`: `esp32-owb` (RMT) @ 60d977e and `esp32-ds18b20` @
    d677f09 (DavidAntliff), with small local IDF 5 fixes. They use the legacy RMT driver (two deprecation warnings
    are expected; it must go before ESP-IDF 6). Do **not** switch to `esp-idf-lib/ds18x20` (bit-banged, as in
-   floor-heating-controller): on heating-controller-2's bus it found only 1 of 7 sensors (2026-09-11). The
+   floor-heating-controller): on sensors-controller-2's bus it found only 1 of 7 sensors (2026-09-11). The
    replacement is `firmware/docs/IDF6_MIGRATION.md`, planned as 2.1.0.
 
 ### Layout
@@ -116,7 +128,7 @@ firmware/
     │                       WiFi/notify/NTP/OTA -> MQTT -> auth/httpd
     ├── device.c            which board this is (STA MAC), sensor labels and Live highlights
     ├── sensor.c            1-Wire discovery and sampling task, per-sensor state, mutexed bus
-    ├── metrics.c           esp-mqtt client on its own queue and task; topic contract with hc-ingest
+    ├── metrics.c           esp-mqtt client on its own queue and task; topic contract with sc-ingest
     ├── events.c            RAM ring of 50 events, ntfy mapping
     ├── history.c           24 h of one-minute samples per sensor in RAM
     ├── api.c               routes on the home-idf HTTP server
@@ -150,7 +162,7 @@ assigned on the first scan and never move, so a rescan keeps a known sensor's hi
 ### HTTP API (port 80)
 
 Common routes come from home-idf: `/`, `/api/session`, `/api/login`, `/api/logout`, `/api/reboot`, `/api/ota`,
-`/admin/su`, `/admin/reboot`, `/admin/hw-status`. Heating routes:
+`/admin/su`, `/admin/reboot`, `/admin/hw-status`. Controller routes:
 
 | Method | Path | Guard | Description |
 |---|---|---|---|
@@ -166,8 +178,8 @@ sensor through it. It is the only route that reads the bus inline; everything el
 ### Notifications (ntfy)
 
 Topics follow the owner's convention `<prefix>-heating-controller` and `<prefix>-heating-controller-error`
-(obfuscated in `credentials.h`). **Both boards share the one pair** and put their name in the title
-("Heating 1" / "Heating 2").
+(obfuscated in `credentials.h`; kept through the rename, so phones stay subscribed). Every board shares the one pair
+and puts its name in the title ("Sensors 2").
 
 - `NTFY_TOPIC`: boot (min priority).
 - `NTFY_ERROR_TOPIC`: a sensor lost (3 failed reads in a row) or recovered, a rescan finding a different number of
@@ -176,7 +188,7 @@ Topics follow the owner's convention `<prefix>-heating-controller` and `<prefix>
 ### UI work
 
 ```sh
-../home-idf/tools/dev_proxy.py 192.168.11.249 --page firmware/web/app.html --name h-controller   # against a board
+../home-idf/tools/dev_proxy.py 192.168.11.249 --page firmware/web/app.html --name s-controller   # against a board
 tools/preview.py --board 2                                                                       # mocked, no board
 tools/preview.py --board 2 --scene history --shoot docs/img                                      # README screenshots (app-<board>-<scene>.png)
 ```
@@ -208,45 +220,48 @@ OTA server and UDP log server stay on 192.168.11.15.
 
 | Service | Details |
 |---|---|
-| `mosquitto` | :1883, no anonymous; shared with water-controller: `install.sh` writes `/etc/mosquitto/{passwd.d/heating,acl.d/heating.acl}` and concatenates all fragments (never write `/etc/mosquitto/passwd` directly, it would drop the water users); users `heating-controller` (write `heating/+/temp/+`, rw `heating/+/status`) and `hc-ingest` (read `heating/#`, plus `heatronic/+/temp/+` from heatronic.acl: heatronic-controller now reads hc-1's sensors); persistence on |
-| `postgresql` (17) | DB `heating`, UTF-8. Roles: `hc_ingest` (peer auth, INSERT), `hc_read` (password, SELECT, from 192.168.11.0/24 — DataGrip) |
-| `hc-ingest` | `server/ingest/hc_ingest.py` in `/opt/hc-server/venv`; persistent MQTT session + manual ack after DB commit → at-least-once; malformed messages logged and dropped |
-| `hc-pg-backup.timer` | nightly `pg_dump -Fc` to `/var/backups/heating`, 14 days kept |
+| `mosquitto` | :1883, no anonymous; shared by every controller: `install.sh` writes `/etc/mosquitto/{passwd.d/sensors,acl.d/sensors.acl}` and concatenates all fragments (never write `/etc/mosquitto/passwd` directly, it would drop the other users); users `sensors-controller` (write `sensors/+/temp/+`, `sensors/+/state`, rw `sensors/+/status`) and `sc-ingest` (read `sensors/#`, plus `heatronic/+/temp/+` from heatronic.acl: heatronic-controller reads the former hc-1 sensors); persistence on |
+| `postgresql` (17) | DB `sensors` (`heating` until 2026-10-19), UTF-8. Roles: `sc_ingest` (peer auth, INSERT), `sc_read` (password, SELECT, from 192.168.11.0/24 — DataGrip, Grafana) |
+| `sc-ingest` | `server/ingest/sc_ingest.py` in `/opt/sc-server/venv`; persistent MQTT session + manual ack after DB commit → at-least-once; malformed messages logged and dropped |
+| `sc-pg-backup.timer` | nightly `pg_dump -Fc` to `/var/backups/sensors`, 14 days kept |
 
 Schema (`server/db/schema.sql`): `temperature_raw(ts timestamptz, sensor_id, value, device)`, PK `(sensor_id, ts)`
-(dedups redeliveries), CHECK value −55..125 °C (`hc_ingest.py` drops anything outside first); `temperature_rejected`: the
+(dedups redeliveries), CHECK value −55..125 °C (`sc_ingest.py` drops anything outside first); `temperature_rejected`: the
 legacy history's sensor errors (−2048 °C, outdoor 85 °C) with a reason; `sensor` metadata; views ported from BigQuery (`temperature`, `temperature_last1h|6h`,
 `temperature_outdoor[_recent]`, `temperature_power_recent`; `timestamp` column = Europe/Warsaw local time).
-`device` is the publisher MAC (`2462abf200dc` = hc-1, `ec626083a66c` = hc-2), NULL for imported history.
+`device` is the publisher MAC (`2462abf200dc` = hc-1, `ec626083a66c` = sc-2, `44b17617b48c` = heatronic since
+2026-10-15), NULL for imported history.
 The `sensor` table is the source of truth for labels; `firmware/main/config/devices.h` mirrors it so the app can
 name sensors offline. Keep them in step when a sensor is added.
 
 ```sh
-server/deploy.sh                 # copy server/ to /opt/hc-server + idempotent install.sh (needs server/secrets.env)
-ssh root@192.168.11.16 journalctl -u hc-ingest -f
-ssh root@192.168.11.16 'runuser -u postgres -- psql heating'
+server/deploy.sh                 # copy server/ to /opt/sc-server + idempotent install.sh (needs server/secrets.env)
+ssh root@192.168.11.16 journalctl -u sc-ingest -f
+ssh root@192.168.11.16 'runuser -u postgres -- psql sensors'
 ```
 
 History: BigQuery `heating_controller_ds` (1,480,475 rows, 2023-02-11 → 2026-09-11 22:06 CEST cutover) imported via
 `server/migrate/bq_export.py` + `import.sh`; raw export archived in `~/Documents/archive/heating-controller-bq-2026-09-11.tar.gz`.
-GCP project `heating-controller` receives nothing since the cutover and is pending shutdown (then delete `gcp/`).
+GCP project `heating-controller` was shut down on 2026-09-21 (`gcp/` is legacy, gitignored keys).
 
 ## Data flow
 
 ```
-ESP32 x2
+ESP32 (sc-2)
   └─ DS18B20 sensors (1-Wire, GPIO4)
   └─ WiFi → NTP (clock sync)
-  └─ MQTT QoS1 heating/<mac>/temp/<sensor_id> → Mosquitto (hc-data :1883)
-                                                   └─ hc-ingest → PostgreSQL heating.temperature_raw
+  └─ MQTT QoS1 sensors/<mac>/temp/<sensor_id> → Mosquitto (hc-data :1883)
+                                                   └─ sc-ingest → PostgreSQL sensors.temperature_raw
+heatronic-controller ── heatronic/<mac>/temp/<sensor_id> ──┘ (same payload, same ingest)
 ```
 
 ## Infrastructure
 
-- OTA server `https://192.168.11.15:8070`, file `heating-controller.bin` (`~/apps/ota-server` on .15), shared by
-  both boards.
-- UDP logs `192.168.11.15:1340`, both boards. They are collected by `heating-controller-logging.service`
-  (`~/apps/logging_server_hc.py`, runs as `tomek`) and land in journald: `journalctl | grep 192.168.11.249`.
+- OTA server `https://192.168.11.15:8070`, file `sensors-controller.bin` (`~/apps/ota-server` on .15;
+  `heating-controller.bin` before 2.3.0).
+- UDP logs `192.168.11.15:1340`. They are collected by `sensors-controller-logging.service`
+  (`~/apps/logging_server_sc.py`, runs as `tomek`; `heating-controller-logging` / `logging_server_hc.py` before
+  2026-10-19) and land in journald: `journalctl | grep 192.168.11.249`.
   `nc -ul 1340` there gets nothing, because that service already holds the port. The script line-buffers its
   output since 2026-09-21; without that, journald showed nothing until a few KB had built up.
 
@@ -258,10 +273,10 @@ ESP32 x2
   / **Heater return** `5900000008f0a828` against the boiler's flow/return, **Outdoor** `9b00000009029f28` against
   the AF sensor; this history (since 2023) gives the heating curve a baseline. Its stage 3 backend follows this
   repository's hc-data pattern (Mosquitto fragments, ingest with manual ack, PostgreSQL roles).
-  **heating-controller-1 is to be replaced by it** (owner's decision 2026-10-07): until then both boards share one
-  5 V supply and the box at the boiler; in heatronic's stage 3 its board takes over hc-1's three sensors on the same
-  MQTT contract `heating/<mac>/temp/<sensor_id>` (history continues, only `device` changes) and serves `/sensor` for
-  the Ulanzi clock, which is repointed from .248 to .246. hc-2 is unaffected.
+  Since 2026-10-15 its board carries hc-1's three sensors (plus two on the DHW coil) and publishes them on
+  `heatronic/<mac>/temp/<sensor_id>` with this repository's payload; `sc-ingest` stores them in
+  `sensors.temperature_raw` (history continues, only `device` changes). It also serves `/sensor` for the Ulanzi
+  clock (.246). hc-1 is off.
 - `../floor-heating-controller/`: pump on the floor circuit fed from the same boiler supply through a mixer.
 
 ## Rules
@@ -271,21 +286,19 @@ ESP32 x2
   Run `git check-ignore` before any `git add`.
 - Commit messages clean, no AI attribution.
 - Anything writing the bootloader or partition table needs the owner's approval at that moment.
-- The MQTT topics and payload are the contract with `hc-ingest` and 3 years of history: never change them.
+- The MQTT topics and payload are the contract with `sc-ingest` and 3 years of history: never change them without
+  a transition in the ingest and the ACL (as for the 2026-10-19 rename).
 - Use `snprintf`, never `sprintf`; no VLAs sized from request data.
 
 ## TODO (cross-project, 2026-09-17)
 
-- [ ] **Off-host backups of hc-data**: `hc-pg-backup` (`/var/backups/heating`) and water-controller's `wc-pg-backup`
+- [ ] **Off-host backups of hc-data**: `sc-pg-backup` (`/var/backups/sensors`) and water-controller's `wc-pg-backup`
   (`/var/backups/water`) only write to the CT's own disk. Choose a second location (Proxmox vzdump storage, NAS,
   another host) and copy the dumps there.
-- [ ] **Data visualisation for hc-data** (shared with water-controller): dashboards over the `heating` and `water`
-  databases, probably Grafana with a PostgreSQL data source on the read-only roles (`hc_read`, `wc_read`). Decide
-  where it runs (hc-data CT or a separate one), then build dashboards (temperatures, outdoor, power; water flow,
-  events, alerts).
+- [x] **Data visualisation for hc-data**: `../hc-viz/` (Grafana on hc-data :3000 since 2026-10-07).
 - [ ] `server/install.sh` was changed locally (2026-09-15) to assemble Mosquitto passwd/acl from fragments shared
   with water-controller; keep it that way when committing.
 - [ ] **ESP-IDF 6 readiness (2.1.0)**: replace the vendored legacy-RMT 1-Wire components with
-  `espressif/onewire_bus` + `espressif/ds18b20`, verifying the sensor ids byte for byte on heating-controller-2
+  `espressif/onewire_bus` + `espressif/ds18b20`, verifying the sensor ids byte for byte on sensors-controller-2
   first. See `firmware/docs/IDF6_MIGRATION.md`.
 - [x] README with screenshots, as the other controllers have (2026-09-22).

@@ -24,18 +24,18 @@ sys.path.insert(0, str(HOME_IDF / "tools"))
 import render_page  # noqa: E402
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-NAME = "h-controller"
+NAME = "s-controller"
 WIDTH, HEIGHT, SCALE = 390, 844, 2
 MIN_VIEWPORT = 500
 ZOOM = MIN_VIEWPORT / WIDTH
 
 BOARDS = {
-    1: ("Heating 1", "2462abf200dc", [
+    1: ("Sensors 1", "2462abf200dc", [
         ("370000001287ce28", 10, "Heater supply", "Heater", "supply", 54.2),
         ("5900000008f0a828", 11, "Heater return", "Heater", "return", 43.8),
         ("9b00000009029f28", 99, "Outdoor", "Outdoor", "", 11.4),
     ], ["outdoor", "heater supply", "heater return"]),
-    2: ("Heating 2", "ec626083a66c", [
+    2: ("Sensors 2", "ec626083a66c", [
         ("b700000014e83928", 21, "Radiators return", "Radiators", "return", 34.1),
         ("2800000008efc028", 22, "Kitchen radiators supply", "Kitchen radiators", "supply", 41.7),
         ("39000000150fc228", 23, "Kitchen radiators return", "Kitchen radiators", "return", 33.2),

@@ -84,7 +84,7 @@ void app_main(void)
 
     hi_log_init(&(hi_log_config_t) {.udp_ip = LOG_UDP_IP, .udp_port = LOG_UDP_PORT,
                                     .on_error_line = hi_notify_error});
-    ESP_LOGW(TAG, "(not error) heating-controller %s on %s, reset: %s", esp_app_get_description()->version,
+    ESP_LOGW(TAG, "(not error) sensors-controller %s on %s, reset: %s", esp_app_get_description()->version,
              device_label(), hi_reset_reason());
     if (nvs_erased) ESP_LOGE(TAG, "NVS was erased");
 
@@ -94,7 +94,7 @@ void app_main(void)
     hi_notify_init(&(hi_notify_config_t) {
         .topic = s_ntfy_topic,
         .error_topic = s_ntfy_error_topic,
-        .error_title = "Heating error",
+        .error_title = "Sensors error",
         .click_url = device_app_url(),
         .error_cooldown_s = NOTIFY_ERROR_COOLDOWN_S,
     });

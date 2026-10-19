@@ -1,4 +1,4 @@
-# heating-controller: ESP32-WROOM-32, 4 MB flash, DS18B20 sensors on a 1-Wire bus
+# sensors-controller (formerly heating-controller): ESP32-WROOM-32, 4 MB flash, DS18B20 sensors on a 1-Wire bus
 CONFIG_IDF_TARGET="esp32"
 
 # Flash: must match the legacy bootloader settings (DIO, 40 MHz, 4 MB)

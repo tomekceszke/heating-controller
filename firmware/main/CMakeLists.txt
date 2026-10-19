@@ -12,5 +12,5 @@ idf_component_register(
     EMBED_TXTFILES ${project_dir}/certs/ota_server_cert_15.pem ${project_dir}/web/manifest.webmanifest
     EMBED_FILES ${project_dir}/web/apple-touch-icon.png)
 
-home_idf_login_page(${COMPONENT_LIB} NAME "h-controller" ACCENT "#e8604c")
-home_idf_app_page(${COMPONENT_LIB} SRC ${project_dir}/web/app.html NAME "h-controller")
+home_idf_login_page(${COMPONENT_LIB} NAME "s-controller" ACCENT "#e8604c")
+home_idf_app_page(${COMPONENT_LIB} SRC ${project_dir}/web/app.html NAME "s-controller")

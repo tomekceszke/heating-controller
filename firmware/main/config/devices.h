@@ -68,8 +68,8 @@ typedef struct {
 #define DEVICE_META_TABLE {                                                             \
     {                                                                                   \
         .mac = "2462abf200dc",                                                          \
-        .hostname = "h-controller-1",                                                   \
-        .label = "Heating 1",                                                           \
+        .hostname = "s-controller-1",                                                   \
+        .label = "Sensors 1",                                                           \
         .app_url = "http://192.168.11.248/",                                            \
         .highlights = {                                                                 \
             {HIGHLIGHT_SENSOR, "outdoor",        "9b00000009029f28", NULL},             \
@@ -79,8 +79,8 @@ typedef struct {
     },                                                                                  \
     {                                                                                   \
         .mac = "ec626083a66c",                                                          \
-        .hostname = "h-controller-2",                                                   \
-        .label = "Heating 2",                                                           \
+        .hostname = "s-controller-2",                                                   \
+        .label = "Sensors 2",                                                           \
         .app_url = "http://192.168.11.249/",                                            \
         .highlights = {                                                                 \
             {HIGHLIGHT_SENSOR, "floor supply",   "7100000008ece828", NULL},             \
@@ -90,6 +90,6 @@ typedef struct {
     },                                                                                  \
 }
 
-#define DEVICE_FALLBACK_HOSTNAME    "h-controller"
-#define DEVICE_FALLBACK_LABEL       "Heating"
+#define DEVICE_FALLBACK_HOSTNAME    "s-controller"
+#define DEVICE_FALLBACK_LABEL       "Sensors"
 #define DEVICE_FALLBACK_APP_URL     ""

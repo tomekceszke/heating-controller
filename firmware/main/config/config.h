@@ -6,7 +6,7 @@
 
 /* SENSORS (1-Wire, esp32-owb RMT driver; the IDF 6 driver swap is tracked in docs/IDF6_MIGRATION.md) */
 #define GPIO_DS18B20_0                  GPIO_NUM_4
-#define MAX_DEVICES                     8       // max sensors on the bus (7 on heating-controller-2)
+#define MAX_DEVICES                     8       // max sensors on the bus (7 on sensors-controller-2)
 #define DS18B20_RESOLUTION              DS18B20_RESOLUTION_12_BIT
 #define TEMP_SENSOR_SCAN_RETRY_S        30      // rescan interval while no sensor answers
 #define READ_PERIOD_S                   5       // seconds between sensor reads: a burner run of ~3 min is ~36 reads
@@ -19,10 +19,10 @@
 
 /* MQTT (metrics to the hc-data broker; user/pass in credentials.h) */
 #define MQTT_BROKER_URI                 "mqtt://192.168.11.16:1883"
-#define MQTT_TOPIC_PREFIX               "heating"
+#define MQTT_TOPIC_PREFIX               "sensors"
 #define MQTT_OUTBOX_LIMIT_BYTES         24576   // ~40 min of 7 quiet sensors (a row a minute), less while they change
 #define METRICS_QUEUE_LEN               32      // handover to the metrics task; the outbox does the real buffering
-#define MQTT_STATE_PERIOD_S             60      // retained heating/<mac>/state refresh
+#define MQTT_STATE_PERIOD_S             60      // retained sensors/<mac>/state refresh
 
 /* EVENTS / HISTORY (RAM only; PostgreSQL on hc-data keeps the real history) */
 #define EVENTS_RING_SIZE                50
@@ -30,7 +30,7 @@
 #define HISTORY_SAMPLES                 1440    // 24 h
 
 /* OTA */
-#define OTA_FILE                        "heating-controller.bin"
+#define OTA_FILE                        "sensors-controller.bin"
 #define OTA_URL                         "https://192.168.11.15:8070/" OTA_FILE
 
 /* LOGGING */

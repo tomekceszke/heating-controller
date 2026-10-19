@@ -1,6 +1,6 @@
 {
-  "name": "h-controller",
-  "short_name": "h-controller",
+  "name": "s-controller",
+  "short_name": "s-controller",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

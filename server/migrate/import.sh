@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Loads server/migrate/out/ (from bq_export.py) into the heating DB on hc-data. Idempotent.
+# Loads server/migrate/out/ (from bq_export.py) into the sensors DB (formerly heating) on hc-data. Idempotent.
 # Usage: server/migrate/import.sh [root@host]
 set -euo pipefail
 HOST=${1:-root@192.168.11.16}
@@ -8,7 +8,7 @@ OUT="$(cd "$(dirname "$0")" && pwd)/out"
 
 ssh "$HOST" 'install -d -m 755 /tmp/hc-import'
 scp -q "$OUT/temperature_raw.csv.gz" "$OUT/sensor.csv" "$HOST:/tmp/hc-import/"
-ssh "$HOST" 'chmod 644 /tmp/hc-import/* && runuser -u postgres -- psql -d heating -v ON_ERROR_STOP=1' <<'SQL'
+ssh "$HOST" 'chmod 644 /tmp/hc-import/* && runuser -u postgres -- psql -d sensors -v ON_ERROR_STOP=1' <<'SQL'
 \timing on
 BEGIN;
 CREATE TEMP TABLE staging_sensor (LIKE sensor);

@@ -4,7 +4,7 @@
 
 /* Starts the shared MQTT client (hi_mqtt) and the metrics task.
  *
- * The topic layout and payload of heating/<mac>/temp/<sensor_id> are the contract with hc-ingest and
+ * The topic layout and payload of sensors/<mac>/temp/<sensor_id> are the contract with sc-ingest and
  * the PostgreSQL `temperature_raw` table; they must not change. password is the revealed MQTT_PASS and
  * must stay valid for the lifetime of the client.
  *

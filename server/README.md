@@ -1,39 +1,44 @@
-# hc-data backend
+# hc-data backend (sensors-controller)
 
 Local replacement for the former GCP backend (Cloud Function + BigQuery). Runs on the Proxmox CT
-`hc-data` (192.168.11.16, Debian 13).
+`hc-data` (192.168.11.16, Debian 13). Renamed from heating-controller on 2026-10-19: database `heating` → `sensors`,
+topics `heating/…` → `sensors/…`, `hc-*` services and roles → `sc-*`.
 
 ```
-ESP32 ── MQTT QoS1 ──> mosquitto :1883 ──> hc-ingest (Python) ──> PostgreSQL "heating"
-         heating/<mac>/temp/<sensor_id>  {"ts":<unix>,"value":<float>}
-         heating/<mac>/status            online|offline (retained, LWT)
+ESP32 ── MQTT QoS1 ──> mosquitto :1883 ──> sc-ingest (Python) ──> PostgreSQL "sensors"
+         sensors/<mac>/temp/<sensor_id>    {"ts":<unix>,"value":<float>}
+         heatronic/<mac>/temp/<sensor_id>  (heatronic-controller's DS18B20s at the boiler, same payload)
+         sensors/<mac>/status              online|offline (retained, LWT)
 ```
 
 ## Deploy
 
 ```sh
 cp server/secrets.env.example server/secrets.env   # first time only; fill with openssl rand -base64 24 | tr -d '/+='
-server/deploy.sh                                   # copies server/ to /opt/hc-server, runs install.sh (idempotent)
+server/deploy.sh                                   # copies server/ to /opt/sc-server, runs install.sh (idempotent)
 ```
 
+`install.sh` restarts Mosquitto or PostgreSQL only when their own settings change (a fresh host) and reloads them
+otherwise: every controller shares both.
+
 `MQTT_DEVICE_PASS` must equal `MQTT_PASS` in `firmware/main/config/credentials.h`.
-`PG_READ_PASS` is the password of the read-only `hc_read` role (e.g. DataGrip: `192.168.11.16:5432/heating`).
+`PG_READ_PASS` is the password of the read-only `sc_read` role (e.g. DataGrip: `192.168.11.16:5432/sensors`).
 
 ## Files
 
 | Path | Purpose |
 |---|---|
 | `install.sh` | apt packages, Mosquitto users/ACL, PostgreSQL roles + schema, venv, systemd units |
-| `mosquitto/hc.conf`, `mosquitto/acl` | broker config (no anonymous, per-user topic ACL) |
+| `mosquitto/hc.conf`, `mosquitto/sensors.acl` | broker config (no anonymous, per-user topic ACL); `hc.conf` is the whole broker's |
 | `db/schema.sql` | tables + views (ported from BigQuery), grants; safe to re-apply |
-| `ingest/hc_ingest.py` | MQTT → PostgreSQL; persistent session, acks only after commit |
-| `backup/hc-pg-backup.*` | nightly `pg_dump -Fc` to `/var/backups/heating`, 14 days |
+| `ingest/sc_ingest.py` | MQTT → PostgreSQL; persistent session, acks only after commit |
+| `backup/sc-pg-backup.*` | nightly `pg_dump -Fc` to `/var/backups/sensors`, 14 days |
 | `migrate/bq_export.py`, `migrate/import.sh` | one-off BigQuery history export/import (done 2026-09-11) |
 
 ## Operations
 
 ```sh
-ssh root@192.168.11.16 journalctl -u hc-ingest -f
-ssh root@192.168.11.16 'runuser -u postgres -- psql heating -c "select * from temperature_last1h"'
-ssh root@192.168.11.16 'mosquitto_sub -u hc-ingest -P … -t "heating/#" -v'
+ssh root@192.168.11.16 journalctl -u sc-ingest -f
+ssh root@192.168.11.16 'runuser -u postgres -- psql sensors -c "select * from temperature_last1h"'
+ssh root@192.168.11.16 'mosquitto_sub -u sc-ingest -P … -t "sensors/#" -v'
 ```

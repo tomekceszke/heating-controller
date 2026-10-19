@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly pg_dump of the sensors database
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/sh -c 'pg_dump -Fc sensors > /var/backups/sensors/sensors-$(date +%%Y%%m%%d).dump.tmp && mv /var/backups/sensors/sensors-$(date +%%Y%%m%%d).dump.tmp /var/backups/sensors/sensors-$(date +%%Y%%m%%d).dump'
+ExecStartPost=/usr/bin/find /var/backups/sensors -name 'sensors-*.dump' -mtime +14 -delete

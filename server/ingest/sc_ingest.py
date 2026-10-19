@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""MQTT -> PostgreSQL bridge for heating-controller temperature readings.
+"""MQTT -> PostgreSQL bridge for sensors-controller (formerly heating-controller) temperature readings.
 
-Subscribes to heating/<device>/temp/<sensor_id> (and heatronic/<device>/temp/<sensor_id>: heatronic-controller took
-over heating-controller-1's sensors at the boiler in 2026-10) with a persistent session and manual
+Subscribes to sensors/<device>/temp/<sensor_id> (and heatronic/<device>/temp/<sensor_id>: heatronic-controller took
+over board 1's sensors at the boiler in 2026-10) with a persistent session and manual
 acks: a reading is acked only after it is committed, so the broker redelivers anything
 lost to a crash or DB outage. The (sensor_id, ts) primary key absorbs duplicates.
 """
@@ -19,12 +19,14 @@ import psycopg
 
 MQTT_HOST = os.environ.get("MQTT_HOST", "127.0.0.1")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
-MQTT_USER = "hc-ingest"
+MQTT_USER = "sc-ingest"
 MQTT_PASS = os.environ["MQTT_INGEST_PASS"]
-PG_DSN = os.environ.get("PG_DSN", "dbname=heating")   # peer auth over the local socket
+PG_DSN = os.environ.get("PG_DSN", "dbname=sensors")   # peer auth over the local socket
 
-TEMP_TOPICS = ("heating/+/temp/+", "heatronic/+/temp/+")   # same payload; the device column tells them apart
-STATUS_TOPIC = "heating/+/status"
+# Same payload everywhere; the device column tells the boards apart. heating/ is the pre-2.3.0 prefix, kept until
+# the board runs 2.3.0 (remove it together with the transitional line in mosquitto/sensors.acl).
+TEMP_TOPICS = ("sensors/+/temp/+", "heatronic/+/temp/+", "heating/+/temp/+")
+STATUS_TOPICS = ("sensors/+/status", "heating/+/status")
 SENSOR_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 MIN_TS = 1577836800                                    # 2020-01-01: older means clock not synced
 MAX_FUTURE_S = 86400
@@ -36,7 +38,7 @@ INSERT_SQL = """
     ON CONFLICT (sensor_id, ts) DO NOTHING
 """
 
-log = logging.getLogger("hc-ingest")
+log = logging.getLogger("sc-ingest")
 
 
 def parse_reading(topic, payload):
@@ -66,7 +68,7 @@ class Ingest:
         self.db = psycopg.connect(PG_DSN, autocommit=True)
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
-            client_id="hc-ingest",
+            client_id="sc-ingest",
             clean_session=False,
             protocol=mqtt.MQTTv311,
             manual_ack=True,
@@ -82,7 +84,7 @@ class Ingest:
             log.error("MQTT connect failed: %s", reason_code)
             return
         log.info("MQTT connected (session present: %s)", flags.session_present)
-        client.subscribe([(t, 1) for t in TEMP_TOPICS] + [(STATUS_TOPIC, 1)])
+        client.subscribe([(t, 1) for t in TEMP_TOPICS + STATUS_TOPICS])
 
     def on_disconnect(self, client, userdata, flags, reason_code, properties):
         log.warning("MQTT disconnected: %s", reason_code)

@@ -1,4 +1,4 @@
--- heating-controller schema (PostgreSQL). Idempotent: safe to re-apply.
+-- sensors-controller (formerly heating-controller) schema (PostgreSQL), database sensors. Idempotent: safe to re-apply.
 -- Ported from BigQuery heating-controller.heating_controller_ds.
 
 CREATE TABLE IF NOT EXISTS sensor (
@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS temperature_raw_ts_brin ON temperature_raw USING brin
 
 -- Sensor errors from the legacy firmware (-2048 °C, the outdoor sensor's 85 °C power-on value) came in with the
 -- BigQuery history. They are copied here with a reason; temperature_raw only accepts the DS18B20 range
--- (-55..125 °C, the same bounds as hc_ingest.py, which drops anything outside before inserting).
+-- (-55..125 °C, the same bounds as sc_ingest.py, which drops anything outside before inserting).
 CREATE TABLE IF NOT EXISTS temperature_rejected (
     ts        timestamptz NOT NULL,
     sensor_id text        NOT NULL,
@@ -136,6 +136,6 @@ ORDER BY t.ts DESC
 LIMIT 1;
 
 -- Privileges (roles are created by install.sh)
-GRANT SELECT ON sensor TO hc_ingest;
-GRANT SELECT, INSERT ON temperature_raw TO hc_ingest;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO hc_read;
+GRANT SELECT ON sensor TO sc_ingest;
+GRANT SELECT, INSERT ON temperature_raw TO sc_ingest;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO sc_read;

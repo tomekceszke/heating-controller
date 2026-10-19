@@ -1,7 +1,11 @@
-# heating-controller
+# sensors-controller
 
-**Two ESP32 boards that measure the house's heating circuits every minute and keep that record going whatever
-happens around them.**
+**ESP32 boards that measure the house's heating circuits every minute and keep that record going whatever happens
+around them.**
+
+Formerly `heating-controller`, renamed on 2026-10-19: the boiler itself is now watched by a separate controller on
+its own bus, and these boards only carry pipe temperature sensors. Board 1 was retired on 2026-10-15, when that
+controller took over its three sensors at the boiler; board 2 keeps the manifolds.
 
 DS18B20 sensors on the supply and return pipes of the heater, the radiators and the underfloor loops, plus one
 outdoors. Each board reads its 1-Wire bus once a minute and publishes every reading over MQTT to a PostgreSQL
@@ -45,8 +49,8 @@ circuits mirror the `sensor` table in the database, so the app can name every se
 
 | Board | Sensors | Headline numbers |
 |---|---|---|
-| Heating 1 | heater supply and return, outdoor | outdoor, heater supply, heater return |
-| Heating 2 | radiators return, kitchen radiators, floor, hallway floor (supply and return each) | floor supply, kitchen supply, floor drop |
+| Sensors 1 (retired 2026-10-15) | heater supply and return, outdoor | outdoor, heater supply, heater return |
+| Sensors 2 | radiators return, kitchen radiators, floor, hallway floor (supply and return each) | floor supply, kitchen supply, floor drop |
 
 ## Collecting comes first
 
@@ -54,8 +58,8 @@ circuits mirror the `sensor` table in the database, so the app can name every se
 flowchart LR
     bus([1-Wire bus<br/>DS18B20 x3 / x7]) --> task[Sensor task<br/>every 5 s, task watchdog]
     task -. post, never blocks .-> q[(queue)]
-    q --> mqtt[MQTT task] -- "QoS 1<br/>heating/&lt;mac&gt;/temp/&lt;id&gt;" --> broker[Mosquitto<br/>hc-data]
-    broker --> ingest[hc-ingest<br/>ack after commit] --> pg[(PostgreSQL<br/>temperature_raw)]
+    q --> mqtt[MQTT task] -- "QoS 1<br/>sensors/&lt;mac&gt;/temp/&lt;id&gt;" --> broker[Mosquitto<br/>hc-data]
+    broker --> ingest[sc-ingest<br/>ack after commit] --> pg[(PostgreSQL<br/>temperature_raw)]
     task --> ram[24 h history<br/>events, RAM]
     ram --> api[HTTP API + app]
     task -. events .-> ntfy[ntfy push]
@@ -70,8 +74,8 @@ flowchart LR
   in the app ("Looking for sensors on the bus"), so a broken harness does not make the board bounce between builds.
 - **The app serves the last sample.** Only `/sensor`, kept from the legacy firmware for a clock display that shows
   the outdoor temperature, reads the bus inline.
-- **The MQTT topics and payload are a contract** with the ingest service and three years of history; they have not
-  changed since the legacy firmware.
+- **The MQTT topics and payload are a contract** with the ingest service and three years of history. The payload has
+  not changed since the legacy firmware; the topic prefix moved from `heating/` to `sensors/` with the rename (2.3.0).
 
 ## Built on home-idf
 
@@ -101,7 +105,8 @@ minute-by-minute log are in [docs/IDF5_MIGRATION.md](docs/IDF5_MIGRATION.md).
 
 ## Data
 
-Readings land in PostgreSQL on `hc-data`, a Proxmox container shared with water-controller: table
+Readings land in PostgreSQL on `hc-data` (database `sensors`, `heating` until 2026-10-19), a Proxmox container shared
+with the other controllers: table
 `temperature_raw(ts, sensor_id, value, device)` with the primary key `(sensor_id, ts)`, a `sensor` table with
 labels and circuits, and views ported from the former BigQuery setup (last hour, last six hours, outdoor,
 supply/return power). The history from Google Cloud (1.48 million rows, outdoor since February 2023) was imported
@@ -111,9 +116,11 @@ MQTT topics:
 
 | Topic | Payload |
 |---|---|
-| `heating/<mac>/temp/<sensor_id>` | `{"ts":<unix>,"value":<°C>}`, QoS 1: on a change of 0.2 °C, at least once a minute per sensor (2.2.0) |
-| `heating/<mac>/status` | `online` / `offline`, retained, last will |
-| `heating/<mac>/state` | the full status document, retained, refreshed every minute (2.1.0) |
+| `sensors/<mac>/temp/<sensor_id>` | `{"ts":<unix>,"value":<°C>}`, QoS 1: on a change of 0.2 °C, at least once a minute per sensor (2.2.0) |
+| `sensors/<mac>/status` | `online` / `offline`, retained, last will |
+| `sensors/<mac>/state` | the full status document, retained, refreshed every minute (2.1.0) |
+
+Before 2.3.0 the prefix was `heating/`.
 
 Details: [server/README.md](server/README.md).
 
@@ -177,6 +184,9 @@ come from home-idf. Controller routes:
 - **2026-09-17 to 2026-09-21**: firmware 2.x on home-idf: one binary for both boards, the app, events and 24 h
   history, and the over-the-air migration to the ESP-IDF 5.4.2 bootloader and the new partition table. The Google
   Cloud project was shut down afterwards.
+- **2026-10-15**: board 1 retired; its three sensors moved to the boiler controller (heatronic-controller).
+- **2026-10-19**: renamed from heating-controller to sensors-controller (firmware 2.3.0: topics `sensors/…`,
+  database `sensors`).
 
 ## License
 
