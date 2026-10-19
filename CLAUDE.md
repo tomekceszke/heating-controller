@@ -308,3 +308,14 @@ heatronic-controller ── heatronic/<mac>/temp/<sensor_id> ──┘ (same pay
   `espressif/onewire_bus` + `espressif/ds18b20`, verifying the sensor ids byte for byte on sensors-controller-2
   first. See `firmware/docs/IDF6_MIGRATION.md`.
 - [x] README with screenshots, as the other controllers have (2026-09-22).
+- [ ] **More pipe sensors on hc-2 for the hydraulics check** (owner, 2026-10-19; heatronic-controller
+  `docs/PROGRAMS.md`, Hydraulics). **Firmware first**: `MAX_DEVICES` is 8 and hc-2 has 7, so raise it (16) and
+  `MQTT_OUTBOX_LIMIT_BYTES` with it, release, OTA, before any new sensor goes on the bus. Then, strapped to the pipe
+  and insulated like the others:
+  - now (3 sensors at hand): **G-R7 living room** supply + return at M-RAD outlet 2 (alu-pex 16), and the **M-RAD
+    supply bar** before outlet 1 (copper);
+  - to buy: **G-F1 kitchen floor loop** supply + return at M-FLOOR (right loop), **G-F3 bathroom loop** pair, and the
+    floor supply after the injection valve (M-FLOOR supply bar);
+  - each new id: a `sensor` row (location, system_type, direction), the table in `Sensor positions` and in
+    heatronic `INSTALLATION.md`, the hc-viz *Bilans hydrauliczny* panels;
+  - with it: the owner reads the M-FLOOR loop flow meters (L/min, pump running) once, for loop power = flow × ΔT.
