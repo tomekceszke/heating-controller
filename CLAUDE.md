@@ -15,9 +15,14 @@ notifications and the web app must never weaken it.**
   `sc-pg-backup`, `/opt|/etc/hc-server` → `sc-server`, `/var/backups/heating` → `sensors`, Grafana datasource
   `sensors`. Unchanged: `/etc/mosquitto/conf.d/hc.conf` (whole broker; changing it needs a restart), the ntfy
   topics (secrets), the payload, tables and views, the migrator (`heating-migrator`, a legacy one-shot). Older
-  entries below keep the old names (hc-1, hc-2 = sc-1, sc-2). `heating/#` stays readable for `sc-ingest` until
-  the board runs 2.3.0 and the retained `heating/…` topics are cleared (transitional lines in
-  `server/mosquitto/sensors.acl` and `server/ingest/sc_ingest.py`).
+  entries below keep the old names (hc-1, hc-2 = sc-1, sc-2).
+- 2026-10-19 15:51–15:55: **cutover on production**. Database, roles and services renamed on hc-data (Mosquitto and
+  PostgreSQL only reloaded), `sc-ingest` took over through a pre-created persistent session, Grafana / hv-status on
+  `sensors`, plugin 1.3.0 on .13; sc-2 on **2.3.0** over OTA 15:54 (published as `heating-controller.bin`, sha256
+  `9f789424…`, home-idf v0.1.17 from git, `build-git/`); ~50 s without readings around its reboot. Old retained
+  `heating/…` topics, the `hc-ingest` session and the `heating` broker fragments removed. Still on the old name:
+  the UDP log collector on .15 (`heating-controller-logging.service`, `logging_server_hc.py`; renaming it needs sudo
+  there).
 - **Both boards run firmware 2.1.0** (OTA 2026-09-21, hc-2 10:28, hc-1 10:53; sha256 `4b024ea2…`, commit `d8bfd59`:
   retained MQTT state topic, read-only admin key; home-idf v0.1.13) and collect normally: hc-1 (3 sensors) and hc-2
   (7 sensors, refitted 2026-09-21). Both are on the ESP-IDF 5.4.2 bootloader and the water/gate partition layout
@@ -259,9 +264,8 @@ heatronic-controller ── heatronic/<mac>/temp/<sensor_id> ──┘ (same pay
 
 - OTA server `https://192.168.11.15:8070`, file `sensors-controller.bin` (`~/apps/ota-server` on .15;
   `heating-controller.bin` before 2.3.0).
-- UDP logs `192.168.11.15:1340`. They are collected by `sensors-controller-logging.service`
-  (`~/apps/logging_server_sc.py`, runs as `tomek`; `heating-controller-logging` / `logging_server_hc.py` before
-  2026-10-19) and land in journald: `journalctl | grep 192.168.11.249`.
+- UDP logs `192.168.11.15:1340`. They are collected by `heating-controller-logging.service`
+  (`~/apps/logging_server_hc.py`, runs as `tomek`; not renamed yet, needs sudo on .15) and land in journald: `journalctl | grep 192.168.11.249`.
   `nc -ul 1340` there gets nothing, because that service already holds the port. The script line-buffers its
   output since 2026-09-21; without that, journald showed nothing until a few KB had built up.
 

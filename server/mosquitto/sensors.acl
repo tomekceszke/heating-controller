@@ -6,5 +6,3 @@ topic readwrite sensors/+/status
 
 user sc-ingest
 topic read sensors/#
-# Transitional: the pre-2.3.0 prefix. Remove once the board runs 2.3.0 and the retained heating/ topics are cleared.
-topic read heating/#

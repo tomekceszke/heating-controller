@@ -23,10 +23,9 @@ MQTT_USER = "sc-ingest"
 MQTT_PASS = os.environ["MQTT_INGEST_PASS"]
 PG_DSN = os.environ.get("PG_DSN", "dbname=sensors")   # peer auth over the local socket
 
-# Same payload everywhere; the device column tells the boards apart. heating/ is the pre-2.3.0 prefix, kept until
-# the board runs 2.3.0 (remove it together with the transitional line in mosquitto/sensors.acl).
-TEMP_TOPICS = ("sensors/+/temp/+", "heatronic/+/temp/+", "heating/+/temp/+")
-STATUS_TOPICS = ("sensors/+/status", "heating/+/status")
+# Same payload on both; the device column tells the boards apart. (heating/ was this board's prefix before 2.3.0.)
+TEMP_TOPICS = ("sensors/+/temp/+", "heatronic/+/temp/+")
+STATUS_TOPICS = ("sensors/+/status",)
 SENSOR_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 MIN_TS = 1577836800                                    # 2020-01-01: older means clock not synced
 MAX_FUTURE_S = 86400
