@@ -34,6 +34,9 @@ notifications and the web app must never weaken it.**
   sensors read every 5 s, sent on a 0.2 °C change or 55 s after the last send (home-idf v0.1.17 `hi_deadband`).
   Built by `tools/build_release.sh` from the sibling home-idf checkout at tag v0.1.17 before the tag was pushed;
   `dependencies.lock` follows once it is.
+- 2026-10-19: **firmware 2.4.0** built (`releases/sensors-controller.bin`, sha256 `7f7e4e11…`): `MAX_DEVICES` 8 → 16
+  for the hydraulics sensors on hc-2, MQTT outbox 24 → 32 KB; DRAM static 52 %, heap ~23 KB lower. OTA by the owner
+  before the new sensors go on the bus.
 - The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
   publishing deliberately.
 - Updates from now on: `tools/build_release.sh`, publish `releases/sensors-controller.bin` as
@@ -310,7 +313,7 @@ heatronic-controller ── heatronic/<mac>/temp/<sensor_id> ──┘ (same pay
 - [x] README with screenshots, as the other controllers have (2026-09-22).
 - [ ] **More pipe sensors on hc-2 for the hydraulics check** (owner, 2026-10-19; heatronic-controller
   `docs/PROGRAMS.md`, Hydraulics). **Firmware first**: `MAX_DEVICES` is 8 and hc-2 has 7, so raise it (16) and
-  `MQTT_OUTBOX_LIMIT_BYTES` with it, release, OTA, before any new sensor goes on the bus. Then, strapped to the pipe
+  `MQTT_OUTBOX_LIMIT_BYTES` with it, release, OTA, before any new sensor goes on the bus (2.4.0 built 2026-10-19, OTA pending). Then, strapped to the pipe
   and insulated like the others:
   - now (3 sensors at hand): **G-R7 living room** supply + return at M-RAD outlet 2 (alu-pex 16), and the **M-RAD
     supply bar** before outlet 1 (copper);

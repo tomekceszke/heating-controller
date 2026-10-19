@@ -4,7 +4,7 @@
 #include "events.h"
 #include "history.h"
 
-/* MAX_DEVICES x HISTORY_SAMPLES x 2 B = 23 KB of DRAM for 24 h of eight sensors. */
+/* MAX_DEVICES x HISTORY_SAMPLES x 2 B = 46 KB of DRAM for 24 h of sixteen sensors. */
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static int16_t s_temps[MAX_DEVICES][HISTORY_SAMPLES];
 static size_t s_head;
