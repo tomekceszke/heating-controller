@@ -1,9 +1,10 @@
 # sensors-controller
 
-Pipe temperature monitor (formerly **heating-controller**, renamed 2026-10-19): an ESP32 board reads DS18B20
-sensors at the floor pump set and the radiator manifold and publishes readings over MQTT to a local Mosquitto +
-PostgreSQL backend (Proxmox CT `hc-data`, 192.168.11.16). Board 1 (sc-1, formerly hc-1) is retired: its three
-sensors at the boiler moved to `../heatronic-controller/` on 2026-10-15. **Collecting readings is the product: the UI,
+Pipe temperature monitor (formerly **heating-controller**, renamed 2026-10-19): one ESP32 board (sc-2) reads
+DS18B20 sensors at the floor pump set and the radiator manifold and publishes readings over MQTT to a local Mosquitto +
+PostgreSQL backend (Proxmox CT `hc-data`, 192.168.11.16). The second board, hc-1 (heating-controller-1, at the boiler),
+was switched off on 2026-10-15 and never ran as sensors-controller: its three sensors moved to
+`../heatronic-controller/`. **Collecting readings is the product: the UI,
 notifications and the web app must never weaken it.**
 
 ## Status
@@ -15,7 +16,9 @@ notifications and the web app must never weaken it.**
   `sc-pg-backup`, `/opt|/etc/hc-server` → `sc-server`, `/var/backups/heating` → `sensors`, Grafana datasource
   `sensors`. Unchanged: `/etc/mosquitto/conf.d/hc.conf` (whole broker; changing it needs a restart), the ntfy
   topics (secrets), the payload, tables and views, the migrator (`heating-migrator`, a legacy one-shot). Older
-  entries below keep the old names (hc-1, hc-2 = sc-1, sc-2).
+  entries below keep the old names (hc-2 = sc-2).
+- 2026-10-19: hc-1 removed from the board table (`devices.h`), `tools/preview.py` and the README; goes out with
+  the next release (2.3.0 still carries it, harmless: no board with that MAC runs).
 - 2026-10-19 15:51–15:55: **cutover on production**. Database, roles and services renamed on hc-data (Mosquitto and
   PostgreSQL only reloaded), `sc-ingest` took over through a pre-created persistent session, Grafana / hv-status on
   `sensors`, plugin 1.3.0 on .13; sc-2 on **2.3.0** over OTA 15:54 (published as `heating-controller.bin`, sha256
@@ -49,12 +52,11 @@ gcp/        # LEGACY: old Cloud Functions + service account keys (gitignored); d
 
 ## Devices
 
-One binary for every board; everything board-specific is picked at runtime by STA MAC in
+Everything board-specific is picked at runtime by STA MAC in
 `firmware/main/config/devices.h` (hostname, app headline, ntfy title, the three Live numbers).
 
 | Name | IP | MAC | Hostname | Sensors |
 |---|---|---|---|---|
-| sensors-controller-1 (sc-1, retired 2026-10-15) | `192.168.11.248` | `24:62:AB:F2:00:DC` | `s-controller-1` | none (its 3 moved to heatronic) |
 | sensors-controller-2 (sc-2) | `192.168.11.249` | `EC:62:60:83:A6:6C` | `s-controller-2` | 7 |
 
 DHCP reservations, ESP32 range 192.168.11.240–254. Target chip **ESP32**, 4 MB flash (DIO, 40 MHz).
@@ -69,7 +71,7 @@ soldered copper 22 mm OD; every loop and radiator connection is alu-pex 16.
 |---|---|---|
 | Heater supply / return (heatronic, formerly hc-1) | `370000001287ce28` / `5900000008f0a828` | boiler pipes at the boiler, heating side after the 3-way valve (exact spot not given). **Supply to be re-mounted** (owner, 2026-10-13): 2 K under the floor set's supply sensor 4.5 m downstream |
 | Outdoor (heatronic, formerly hc-1) | `9b00000009029f28` | outside |
-| DHW coil supply / return (heatronic) | `5f0625920d100f28` / `030625922cad0f28` | the cylinder coil's upper / lower connection pipes, since 2026-10-14 23:21 on heatronic-controller's GPIO10 bus; `sensor` rows DHW / COIL / POWER, BACK (12, 13). Which is which inferred from the idle readings (upper warmer), to be confirmed at the first DHW charge |
+| DHW coil supply / return (heatronic) | `5f0625920d100f28` / `030625922cad0f28` | the cylinder coil's upper / lower connection pipes, since 2026-10-14 23:21 on heatronic-controller's GPIO10 bus; `sensor` rows DHW / COIL / POWER, BACK (12, 13); confirmed at the first DHW charge 2026-10-15 |
 | Floor supply (sc-2) | `7100000008ece828` | floor pump set (Prandelli RPM-R, garage), copper boiler supply **before** the thermostatic injection valve, next to floor-heating-controller's sensor: boiler water, not the floor's |
 | Floor return | `a60416586fb5ff28` | the set's copper return to the boiler, right after the last valve (return regulating valve 7). It leaves the set's **upper** bar, so it carries mixed floor-supply water (~29 °C), not the loops' return |
 | Hallway floor supply / return | `77041469f284ff28` / `f10316555c4bff28` | the middle loop (hall) at the floor set, alu-pex 16: supply on the pipe from the upper bar (flow meters), return on the pipe into the lower bar. The only sensors after the mixing |
@@ -177,14 +179,14 @@ Common routes come from home-idf: `/`, `/api/session`, `/api/login`, `/api/logou
 | GET | `/admin/status` | `Authorization` header | same as `/api/status` |
 | GET | `/sensor?sensor_id=<id>` | none | `{"value":21.5}`, `-273` on error/unknown id |
 
-`/sensor` is unchanged from the legacy firmware and stays unauthenticated: `~/dev/ulanzi_tc001` polls the outdoor
-sensor through it. It is the only route that reads the bus inline; everything else serves the last sample.
+`/sensor` is unchanged from the legacy firmware and stays unauthenticated: `~/dev/ulanzi_tc001` polled the outdoor
+sensor through it on hc-1 (since 2026-10-15 it polls heatronic-controller, .246). It is the only route that reads the bus inline; everything else serves the last sample.
 
 ### Notifications (ntfy)
 
 Topics follow the owner's convention `<prefix>-heating-controller` and `<prefix>-heating-controller-error`
-(obfuscated in `credentials.h`; kept through the rename, so phones stay subscribed). Every board shares the one pair
-and puts its name in the title ("Sensors 2").
+(obfuscated in `credentials.h`; kept through the rename, so phones stay subscribed). The board puts its name in the title
+("Sensors 2").
 
 - `NTFY_TOPIC`: boot (min priority).
 - `NTFY_ERROR_TOPIC`: a sensor lost (3 failed reads in a row) or recovered, a rescan finding a different number of

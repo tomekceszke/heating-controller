@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serves firmware/web/app.html with mocked API data, for UI work without a device.
 
-Usage: tools/preview.py [--port 8099] [--board 1|2] [--shoot docs/img]
+Usage: tools/preview.py [--port 8099] [--board 2] [--shoot docs/img]
 
 The page goes through home-idf's render_page.py, so it is byte for byte what the firmware embeds.
 --shoot saves Live / History / Settings at 390x844 (pixel ratio 2) in headless Chrome and exits.
@@ -30,11 +30,6 @@ MIN_VIEWPORT = 500
 ZOOM = MIN_VIEWPORT / WIDTH
 
 BOARDS = {
-    1: ("Sensors 1", "2462abf200dc", [
-        ("370000001287ce28", 10, "Heater supply", "Heater", "supply", 54.2),
-        ("5900000008f0a828", 11, "Heater return", "Heater", "return", 43.8),
-        ("9b00000009029f28", 99, "Outdoor", "Outdoor", "", 11.4),
-    ], ["outdoor", "heater supply", "heater return"]),
     2: ("Sensors 2", "ec626083a66c", [
         ("b700000014e83928", 21, "Radiators return", "Radiators", "return", 34.1),
         ("2800000008efc028", 22, "Kitchen radiators supply", "Kitchen radiators", "supply", 41.7),
@@ -61,13 +56,9 @@ def status(board):
              "c": c, "age_s": 12, "errors": 0, "lost": False}
             for i, o, lb, g, d, c in sensors]
     by_id = {r["id"]: r for r in rows}
-    if board == 1:
-        values = [by_id["9b00000009029f28"]["c"], by_id["370000001287ce28"]["c"], by_id["5900000008f0a828"]["c"]]
-        units = ["°C", "°C", "°C"]
-    else:
-        values = [by_id["7100000008ece828"]["c"], by_id["2800000008efc028"]["c"],
-                  round(by_id["7100000008ece828"]["c"] - by_id["a60416586fb5ff28"]["c"], 1)]
-        units = ["°C", "°C", "K"]
+    values = [by_id["7100000008ece828"]["c"], by_id["2800000008efc028"]["c"],
+              round(by_id["7100000008ece828"]["c"] - by_id["a60416586fb5ff28"]["c"], 1)]
+    units = ["°C", "°C", "K"]
     return {
         "device": label, "mac": mac, "sensors_alive": True, "sensors": rows,
         "highlights": [{"caption": c, "unit": u, "value": v, "age_s": 12}
@@ -208,7 +199,7 @@ def shoot(port, out_dir, board, scene):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8099)
-    ap.add_argument("--board", type=int, default=2, choices=(1, 2))
+    ap.add_argument("--board", type=int, default=2, choices=(2,))
     ap.add_argument("--shoot")
     ap.add_argument("--scene", default="live", choices=tuple(SCENES))
     args = ap.parse_args()
@@ -220,7 +211,7 @@ def main():
         shoot(args.port, pathlib.Path(args.shoot), args.board, args.scene)
         server.shutdown()
         return
-    print(f"Heating {args.board} mock on {url} (Ctrl-C to stop)")
+    print(f"Sensors {args.board} mock on {url} (Ctrl-C to stop)")
     try:
         while True:
             time.sleep(1)

@@ -1,31 +1,30 @@
 # sensors-controller
 
-**ESP32 boards that measure the house's heating circuits every minute and keep that record going whatever happens
-around them.**
+**An ESP32 board that measures the house's heating circuits every minute and keeps that record going whatever
+happens around it.**
 
-Formerly `heating-controller`, renamed on 2026-10-19: the boiler itself is now watched by a separate controller on
-its own bus, and these boards only carry pipe temperature sensors. Board 1 was retired on 2026-10-15, when that
-controller took over its three sensors at the boiler; board 2 keeps the manifolds.
+Formerly `heating-controller`, renamed on 2026-10-19. It used to run on two boards; the one at the boiler
+(heater supply and return, outdoor) was retired on 2026-10-15, when a separate controller on the boiler's own bus
+took over its three sensors. The board left carries the pipe sensors at the manifolds.
 
-DS18B20 sensors on the supply and return pipes of the heater, the radiators and the underfloor loops, plus one
-outdoors. Each board reads its 1-Wire bus once a minute and publishes every reading over MQTT to a PostgreSQL
-database on a small home server, where the outdoor series goes back to February 2023. The rule behind every line of
+DS18B20 sensors on the supply and return pipes of the radiators and the underfloor loops. The board reads its
+1-Wire bus every 5 seconds and publishes the readings over MQTT to a PostgreSQL database on a small home server,
+where the history goes back to February 2023. The rule behind every line of
 firmware: **collecting readings is the product**, and the app, the notifications and the network must never weaken
 it.
 
 <p align="center">
-  <img src="docs/img/app-2-live.png" width="23%" alt="App, board 2: three circuits with supply, return and the drop across each">
-  <img src="docs/img/app-1-live.png" width="23%" alt="App, board 1: heater supply and return, outdoor temperature">
-  <img src="docs/img/app-2-history.png" width="23%" alt="App: 24 h chart of every sensor on the board, events">
-  <img src="docs/img/app-2-settings.png" width="23%" alt="App: sensors with their 1-Wire ids and the age of each reading">
+  <img src="docs/img/app-2-live.png" width="30%" alt="App: three circuits with supply, return and the drop across each">
+  <img src="docs/img/app-2-history.png" width="30%" alt="App: 24 h chart of every sensor on the board, events">
+  <img src="docs/img/app-2-settings.png" width="30%" alt="App: sensors with their 1-Wire ids and the age of each reading">
 </p>
 
-<p align="center"><sub>The web app the boards serve, rendered with sample data (<code>tools/preview.py</code>).</sub></p>
+<p align="center"><sub>The web app the board serves, rendered with sample data (<code>tools/preview.py</code>).</sub></p>
 
 ## What it does
 
-- **Reads every sensor once a minute**: 3 on board 1 (heater supply and return, outdoor), 7 on board 2 (radiators,
-  kitchen radiators, floor and hallway floor loops).
+- **Reads every sensor every 5 seconds**: 7 of them (radiators return, kitchen radiators, floor and hallway floor
+  loops), each sent on a change of 0.2 °C and at least once a minute.
 - **Publishes each reading** over MQTT QoS 1 to Mosquitto on the home server; an ingest service writes it to
   PostgreSQL and acknowledges only after the commit, so a reading is stored at least once and duplicates collapse on
   the primary key.
@@ -34,29 +33,28 @@ it.
 - **Notices sensors going away**: three failed reads in a row mark a sensor lost, and it is reported again when it
   comes back. Sensor ids never change, so a rescan keeps each sensor's history series.
 - **App** for phone, tablet and desktop: one row per circuit pairing supply with return and showing the drop across
-  it, three headline numbers per board, a 24 h chart of every sensor, the last 50 events, sensor and system health.
+  it, three headline numbers, a 24 h chart of every sensor, the last 50 events, sensor and system health.
 - **Push notifications** ([ntfy](https://ntfy.sh)): a lost or recovered sensor, a rescan finding a different number
   of sensors, a full MQTT outbox, every error line and unexpected resets.
 - **Safe over-the-air updates**: a new image is verified after the first boot and rolled back if the sensor task or
   Wi-Fi does not come up.
 
-## One binary, two boards
+## Board table
 
-Both boards run the same image. At boot it reads its own MAC address and picks everything board-specific from a
+The image is the same for any board. At boot it reads its own MAC address and picks everything board-specific from a
 table in [`firmware/main/config/devices.h`](firmware/main/config/devices.h): hostname, app headline, notification
 title and the three headline numbers (a single sensor, or the drop across a supply/return pair). Sensor labels and
 circuits mirror the `sensor` table in the database, so the app can name every sensor without a server.
 
 | Board | Sensors | Headline numbers |
 |---|---|---|
-| Sensors 1 (retired 2026-10-15) | heater supply and return, outdoor | outdoor, heater supply, heater return |
 | Sensors 2 | radiators return, kitchen radiators, floor, hallway floor (supply and return each) | floor supply, kitchen supply, floor drop |
 
 ## Collecting comes first
 
 ```mermaid
 flowchart LR
-    bus([1-Wire bus<br/>DS18B20 x3 / x7]) --> task[Sensor task<br/>every 5 s, task watchdog]
+    bus([1-Wire bus<br/>DS18B20 x7]) --> task[Sensor task<br/>every 5 s, task watchdog]
     task -. post, never blocks .-> q[(queue)]
     q --> mqtt[MQTT task] -- "QoS 1<br/>sensors/&lt;mac&gt;/temp/&lt;id&gt;" --> broker[Mosquitto<br/>hc-data]
     broker --> ingest[sc-ingest<br/>ack after commit] --> pg[(PostgreSQL<br/>temperature_raw)]
@@ -128,11 +126,11 @@ Details: [server/README.md](server/README.md).
 
 | Item | Value |
 |---|---|
-| Module | ESP32, 4 MB flash (DIO, 40 MHz), two boards |
+| Module | ESP32, 4 MB flash (DIO, 40 MHz) |
 | Sensors | DS18B20 on 1-Wire, GPIO4, RMT driver (vendored `esp32-owb` and `esp32-ds18b20`) |
 | Sampling | read every 5 s; sent on a change of 0.2 °C or 55 s after the last send (home-idf `hi_deadband`), so a row at least once a minute and a burner run at 5 s (every 60 s before 2.2.0) |
 
-The RMT driver is kept on purpose: a bit-banged 1-Wire driver found only 1 of the 7 sensors on board 2's long bus.
+The RMT driver is kept on purpose: a bit-banged 1-Wire driver found only 1 of the 7 sensors on the board's long bus.
 USB is the recovery path: hold **IO0**, press and release **EN**, release **IO0**, then flash bootloader, table and
 app over serial.
 

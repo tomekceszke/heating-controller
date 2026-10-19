@@ -43,7 +43,7 @@ says CPU-delay timing "proved to be too unreliable". Do not use it for this proj
    exactly the known IDs below before trusting it.
 4. Test on **sensors-controller-2 first** (7-sensor bus = the hard case). Pass: 7/7 found, 0 read errors,
    per-sensor error counters flat over 24 h, readings arriving in hc-data (`temperature_raw`, at least one row per sensor per minute). Fail → OTA the known-good image back.
-5. Then sensors-controller-1, delete `components/esp32-owb` + `components/esp32-ds18b20`.
+5. Delete `components/esp32-owb` + `components/esp32-ds18b20`.
 6. Only then bump ESP-IDF to 6.x (check the 6.0 migration guide for the rest: e.g. cJSON/`json` component
    moved to the registry, other legacy drivers removed — this project uses none of those).
 
@@ -51,7 +51,7 @@ says CPU-delay timing "proved to be too unreliable". Do not use it for this proj
 
 | Unit | IP | Sensors |
 |---|---|---|
-| sensors-controller-1 | 192.168.11.248 | `370000001287ce28`, `5900000008f0a828`, `9b00000009029f28` (outdoor) |
+| heating-controller-1 (off since 2026-10-15) | 192.168.11.248 | `370000001287ce28`, `5900000008f0a828`, `9b00000009029f28` (outdoor) |
 | sensors-controller-2 | 192.168.11.249 | `2800000008efc028`, `7100000008ece828`, `39000000150fc228`, `b700000014e83928`, `77041469f284ff28`, `a60416586fb5ff28`, `f10316555c4bff28` |
 
 ## Known-good image

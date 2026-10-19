@@ -64,19 +64,9 @@ typedef struct {
 } device_meta_t;
 
 /* Boards in production. An unknown MAC falls back to DEVICE_FALLBACK_* and the first three
- * sensors found, ordered by display_order. */
+ * sensors found, ordered by display_order. (Board 1, heating-controller-1 `2462abf200dc`, was retired on
+ * 2026-10-15; its sensors are on heatronic-controller.) */
 #define DEVICE_META_TABLE {                                                             \
-    {                                                                                   \
-        .mac = "2462abf200dc",                                                          \
-        .hostname = "s-controller-1",                                                   \
-        .label = "Sensors 1",                                                           \
-        .app_url = "http://192.168.11.248/",                                            \
-        .highlights = {                                                                 \
-            {HIGHLIGHT_SENSOR, "outdoor",        "9b00000009029f28", NULL},             \
-            {HIGHLIGHT_SENSOR, "heater supply",  "370000001287ce28", NULL},             \
-            {HIGHLIGHT_SENSOR, "heater return",  "5900000008f0a828", NULL},             \
-        },                                                                              \
-    },                                                                                  \
     {                                                                                   \
         .mac = "ec626083a66c",                                                          \
         .hostname = "s-controller-2",                                                   \
