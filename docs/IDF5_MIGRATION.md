@@ -38,7 +38,7 @@ a safe state while it runs: the whole cost is the couple of minutes of missing r
 ## Two boards, one file name
 
 `heating-controller-1` and `heating-controller-2` run the same binary and poll the same
-`https://192.168.11.15:8070/heating-controller.bin`, and the migrator deletes the file once it has it. The two
+`https://{ota-host}:8070/heating-controller.bin`, and the migrator deletes the file once it has it. The two
 migrations therefore run **strictly one after the other**: publish, migrate and verify one board completely before
 touching the other. While a migrator is published under that name, a board that happens to reboot would pick it up
 and land in stage `ready`; that is recoverable (commit it, or reflash the legacy image) but reorders the evening.
@@ -62,11 +62,11 @@ and land in stage `ready`; that is recoverable (commit it, or reflash the legacy
    and the migrator commit use the same value.
 2. `tools/build_release.sh`; record both sha256 values.
 3. Preflight: `GET http://<ip>/admin/hw-status` and one `GET /sensor?sensor_id=<id>` on the legacy firmware; note the
-   time and the newest `temperature_raw` row for that MAC. Start the OTA server on .15 and `nc -ul 1340` for the log.
-4. `scp releases/heating-migrator.bin 192.168.11.15:apps/ota-server/builds/heating-controller.bin`.
+   time and the newest `temperature_raw` row for that MAC. Start the OTA server on {ota-host} and `nc -ul 1340` for the log.
+4. `scp releases/heating-migrator.bin {ota-host}:apps/ota-server/builds/heating-controller.bin`.
 5. Legacy `POST /admin/su` with the Authorization header (runs synchronously, the device restarts into the migrator).
 6. `GET http://<ip>/migrator` until stage `ready`; read the bootloader version line. **Stop if any check fails.**
-7. `scp releases/heating-controller.bin 192.168.11.15:apps/ota-server/builds/heating-controller.bin`
+7. `scp releases/heating-controller.bin {ota-host}:apps/ota-server/builds/heating-controller.bin`
    **before** the commit.
 8. `POST /migrator/commit` with the admin header; firmware 2.0.0 follows within a minute.
 9. Verify: `/admin/hw-status` shows 2.0.0; app sign-in works; `system.partition = ota_0`,
@@ -83,7 +83,7 @@ line): firmware 2.0.0 `68c88ecbbaeff157…` (928 768 B), migrator `3b3e82b30e3fd
 | Time (CEST) | Step |
 |---|---|
 | 23:33 | Preflight: both boards up since 2026-09-11, all 10 sensors reading, one row per sensor per minute in `temperature_raw` |
-| 23:34 | Migrator published as `heating-controller.bin`, OTA server started on .15 |
+| 23:34 | Migrator published as `heating-controller.bin`, OTA server started on {ota-host} |
 | 23:37:05 | hc-2 legacy `POST /admin/su` downloaded the migrator, sent DELETE at 23:37:20, rebooted |
 | 23:38:38 | `GET /migrator` stage `ready` from 0x210000, every check ok. The bootloader in flash had **no description at all** (pre-ESP-IDF 5.1), older than floor-heating's v5.4.1 |
 | 23:39:39 | Firmware 2.0.0 published |
@@ -117,14 +117,14 @@ flashing. NVS survives. The 2.0.1 images are in `releases/` (firmware `90870d6f8
 `c289d40c91bd271e…`).
 
 State left overnight: hc-2 loops and collects nothing; **hc-1 was never touched and still runs the legacy firmware**
-with its 3 sensors. The OTA server on .15 is stopped and the published file renamed to
+with its 3 sensors. The OTA server on {ota-host} is stopped and the published file renamed to
 `heating-controller-2.0.1.bin.parked`, so a reboot of hc-1 cannot pull 2.x onto its legacy partition layout.
 
 ### 2026-09-20: hc-2 recovered over USB, two follow-up fixes
 
 The board was brought to the desk and flashed over USB (`firmware/build.sh -p /dev/cu.usbserial-0001 flash`:
 bootloader, partition table, app and `ota_data_initial`). A router upgrade in between changed nothing that
-mattered: the DHCP reservation still gives 192.168.11.249 and the stored WiFi credentials still associate (the AP
+mattered: the DHCP reservation still gives {sc2-ip} and the stored WiFi credentials still associate (the AP
 moved from channel 1 to 11).
 
 What the recovery showed:
@@ -154,7 +154,7 @@ partition table, and neither changed.
 | Time (CEST) | Step |
 |---|---|
 | 10:00 | Preflight: hc-1 up since 2026-09-11, 3 sensors reading (23.6 / 24.9 / 15.3 outdoor), one row per sensor per minute |
-| 10:00:45 | Migrator published as `heating-controller.bin`, OTA server started on .15 |
+| 10:00:45 | Migrator published as `heating-controller.bin`, OTA server started on {ota-host} |
 | 10:00:53 | Legacy `POST /admin/su` downloaded it, DELETE at 10:01:12, reboot |
 | 10:01:58 | `GET /migrator` stage `ready` from 0x210000, every check ok; bootloader in flash again had no description (pre-ESP-IDF 5.1) |
 | 10:02 | Firmware 2.0.2 published, sha256 verified on the server |
@@ -166,7 +166,7 @@ Verified afterwards: `/sensor?sensor_id=9b00000009029f28` still answers in the l
 display, and `temperature_raw` fills again for `2462abf200dc` with 3 sensors a minute. The gap in the readings runs
 from 10:01:07 to 10:08:47 — about seven and a half minutes, most of it waiting between `ready` and the commit.
 
-The OTA server on .15 is stopped again and the file left as `heating-controller.bin.old`.
+The OTA server on {ota-host} is stopped again and the file left as `heating-controller.bin.old`.
 
 Both boards now run 2.0.2 on the 5.4.2 bootloader and the shared partition layout. **heating-controller-2 is still
 on the desk with its 1-Wire harness unplugged** (0 sensors, which it reports and survives since 2.0.2); it needs
@@ -211,7 +211,7 @@ is kept instead of dropped; MQTT errors log as warnings so an unreachable broker
 
 ### Infrastructure note: the UDP log server buffers
 
-`logging_server_hc.py` on .15 runs under systemd and prints to a pipe, so Python block-buffers its output and
+`logging_server_hc.py` on {ota-host} runs under systemd and prints to a pipe, so Python block-buffers its output and
 journald shows nothing until a few KB have accumulated. During the 2026-09-17 reboot loop the volume hid this.
 Fixed 2026-09-21 in the script itself (`sys.stdout.reconfigure(line_buffering=True)`) rather than the unit, because
 the unit needs root and the script does not. A single packet now shows up in journald immediately.

@@ -1,8 +1,10 @@
 # sensors-controller
 
+LAN addresses appear as placeholders such as `{ota-host}`; their values are in `CLAUDE.local.md` (not in git).
+
 Pipe temperature monitor (formerly **heating-controller**, renamed 2026-10-19): one ESP32 board (sc-2) reads
 DS18B20 sensors at the floor pump set and the radiator manifold and publishes readings over MQTT to a local Mosquitto +
-PostgreSQL backend (Proxmox CT `hc-data`, 192.168.11.16). The second board, hc-1 (heating-controller-1, at the boiler),
+PostgreSQL backend (Proxmox CT `hc-data`, {hc-data}). The second board, hc-1 (heating-controller-1, at the boiler),
 was switched off on 2026-10-15 and never ran as sensors-controller: its three sensors moved to
 `../heatronic-controller/`. **Collecting readings is the product: the UI,
 notifications and the web app must never weaken it.**
@@ -24,7 +26,7 @@ notifications and the web app must never weaken it.**
   `sensors`, plugin 1.3.0 on .13; sc-2 on **2.3.0** over OTA 15:54 (published as `heating-controller.bin`, sha256
   `9f789424…`, home-idf v0.1.17 from git, `build-git/`); ~50 s without readings around its reboot. Old retained
   `heating/…` topics, the `hc-ingest` session and the `heating` broker fragments removed. Still on the old name:
-  the UDP log collector on .15 (`heating-controller-logging.service`, `logging_server_hc.py`; renaming it needs sudo
+  the UDP log collector on {ota-host} (`heating-controller-logging.service`, `logging_server_hc.py`; renaming it needs sudo
   there).
 - **Both boards run firmware 2.1.0** (OTA 2026-09-21, hc-2 10:28, hc-1 10:53; sha256 `4b024ea2…`, commit `d8bfd59`:
   retained MQTT state topic, read-only admin key; home-idf v0.1.13) and collect normally: hc-1 (3 sensors) and hc-2
@@ -37,7 +39,7 @@ notifications and the web app must never weaken it.**
 - 2026-10-19: **firmware 2.4.0** built (`releases/sensors-controller.bin`, sha256 `7f7e4e11…`): `MAX_DEVICES` 8 → 16
   for the hydraulics sensors on hc-2, MQTT outbox 24 → 32 KB; DRAM static 52 %, heap ~23 KB lower. **On hc-2 since 2026-10-19 23:07**
   over OTA (owner's request; ota_1, heap 115 KB free; all 7 sensors reporting).
-- The OTA server on .15 is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
+- The OTA server on {ota-host} is left stopped; start it (`cd ~/apps/ota-server && python3 ota_server.py`) only when
   publishing deliberately.
 - Updates from now on: `tools/build_release.sh`, publish `releases/sensors-controller.bin` as
   `sensors-controller.bin` on the OTA server, `POST /admin/su` (or the app's Settings tab); the download deletes
@@ -60,9 +62,9 @@ Everything board-specific is picked at runtime by STA MAC in
 
 | Name | IP | MAC | Hostname | Sensors |
 |---|---|---|---|---|
-| sensors-controller-2 (sc-2) | `192.168.11.249` | `EC:62:60:83:A6:6C` | `s-controller-2` | 7 |
+| sensors-controller-2 (sc-2) | `{sc2-ip}` | `{sc2-mac}` | `s-controller-2` | 7 |
 
-DHCP reservations, ESP32 range 192.168.11.240–254. Target chip **ESP32**, 4 MB flash (DIO, 40 MHz).
+DHCP reservations, ESP32 range {esp32-dhcp-range}. Target chip **ESP32**, 4 MB flash (DIO, 40 MHz).
 
 ### Sensor positions (owner, 2026-10-13)
 
@@ -183,7 +185,7 @@ Common routes come from home-idf: `/`, `/api/session`, `/api/login`, `/api/logou
 | GET | `/sensor?sensor_id=<id>` | none | `{"value":21.5}`, `-273` on error/unknown id |
 
 `/sensor` is unchanged from the legacy firmware and stays unauthenticated: `~/dev/ulanzi_tc001` polled the outdoor
-sensor through it on hc-1 (since 2026-10-15 it polls heatronic-controller, .246). It is the only route that reads the bus inline; everything else serves the last sample.
+sensor through it on hc-1 (since 2026-10-15 it polls heatronic-controller, {hr-ip}). It is the only route that reads the bus inline; everything else serves the last sample.
 
 ### Notifications (ntfy)
 
@@ -198,7 +200,7 @@ Topics follow the owner's convention `<prefix>-heating-controller` and `<prefix>
 ### UI work
 
 ```sh
-../home-idf/tools/dev_proxy.py 192.168.11.249 --page firmware/web/app.html --name s-controller   # against a board
+../home-idf/tools/dev_proxy.py {sc2-ip} --page firmware/web/app.html --name s-controller   # against a board
 tools/preview.py --board 2                                                                       # mocked, no board
 tools/preview.py --board 2 --scene history --shoot docs/img                                      # README screenshots (app-<board>-<scene>.png)
 ```
@@ -225,13 +227,13 @@ checks (app slot 1.875 MB, migrator 1 MB), both images as artifacts. There is no
 
 ## Local backend (hc-data)
 
-Proxmox LXC CT `hc-data`, **192.168.11.16** (Debian 13, 1 vCPU, 1 GB RAM, 8 GB disk), root SSH with key.
-OTA server and UDP log server stay on 192.168.11.15.
+Proxmox LXC CT `hc-data`, **{hc-data}** (Debian 13, 1 vCPU, 1 GB RAM, 8 GB disk), root SSH with key.
+OTA server and UDP log server stay on {ota-host}.
 
 | Service | Details |
 |---|---|
 | `mosquitto` | :1883, no anonymous; shared by every controller: `install.sh` writes `/etc/mosquitto/{passwd.d/sensors,acl.d/sensors.acl}` and concatenates all fragments (never write `/etc/mosquitto/passwd` directly, it would drop the other users); users `sensors-controller` (write `sensors/+/temp/+`, `sensors/+/state`, rw `sensors/+/status`) and `sc-ingest` (read `sensors/#`, plus `heatronic/+/temp/+` from heatronic.acl: heatronic-controller reads the former hc-1 sensors); persistence on |
-| `postgresql` (17) | DB `sensors` (`heating` until 2026-10-19), UTF-8. Roles: `sc_ingest` (peer auth, INSERT), `sc_read` (password, SELECT, from 192.168.11.0/24 — DataGrip, Grafana) |
+| `postgresql` (17) | DB `sensors` (`heating` until 2026-10-19), UTF-8. Roles: `sc_ingest` (peer auth, INSERT), `sc_read` (password, SELECT, from {lan-subnet} — DataGrip, Grafana) |
 | `sc-ingest` | `server/ingest/sc_ingest.py` in `/opt/sc-server/venv`; persistent MQTT session + manual ack after DB commit → at-least-once; malformed messages logged and dropped |
 | `sc-pg-backup.timer` | nightly `pg_dump -Fc` to `/var/backups/sensors`, 14 days kept |
 
@@ -246,8 +248,8 @@ name sensors offline. Keep them in step when a sensor is added.
 
 ```sh
 server/deploy.sh                 # copy server/ to /opt/sc-server + idempotent install.sh (needs server/secrets.env)
-ssh root@192.168.11.16 journalctl -u sc-ingest -f
-ssh root@192.168.11.16 'runuser -u postgres -- psql sensors'
+ssh root@{hc-data} journalctl -u sc-ingest -f
+ssh root@{hc-data} 'runuser -u postgres -- psql sensors'
 ```
 
 History: BigQuery `heating_controller_ds` (1,480,475 rows, 2023-02-11 → 2026-09-11 22:06 CEST cutover) imported via
@@ -267,10 +269,10 @@ heatronic-controller ── heatronic/<mac>/temp/<sensor_id> ──┘ (same pay
 
 ## Infrastructure
 
-- OTA server `https://192.168.11.15:8070`, file `sensors-controller.bin` (`~/apps/ota-server` on .15;
+- OTA server `https://{ota-host}:8070`, file `sensors-controller.bin` (`~/apps/ota-server` on {ota-host};
   `heating-controller.bin` before 2.3.0).
-- UDP logs `192.168.11.15:1340`. They are collected by `heating-controller-logging.service`
-  (`~/apps/logging_server_hc.py`, runs as `tomek`; not renamed yet, needs sudo on .15) and land in journald: `journalctl | grep 192.168.11.249`.
+- UDP logs `{ota-host}:1340`. They are collected by `heating-controller-logging.service`
+  (`~/apps/logging_server_hc.py`, runs as `tomek`; not renamed yet, needs sudo on {ota-host}) and land in journald: `journalctl | grep {sc2-ip}`.
   `nc -ul 1340` there gets nothing, because that service already holds the port. The script line-buffers its
   output since 2026-09-21; without that, journald showed nothing until a few KB had built up.
 
@@ -285,7 +287,7 @@ heatronic-controller ── heatronic/<mac>/temp/<sensor_id> ──┘ (same pay
   Since 2026-10-15 its board carries hc-1's three sensors (plus two on the DHW coil) and publishes them on
   `heatronic/<mac>/temp/<sensor_id>` with this repository's payload; `sc-ingest` stores them in
   `sensors.temperature_raw` (history continues, only `device` changes). It also serves `/sensor` for the Ulanzi
-  clock (.246). hc-1 is off.
+  clock ({hr-ip}). hc-1 is off.
 - `../floor-heating-controller/`: pump on the floor circuit fed from the same boiler supply through a mixer.
 
 ## Rules

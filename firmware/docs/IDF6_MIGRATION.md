@@ -51,8 +51,8 @@ says CPU-delay timing "proved to be too unreliable". Do not use it for this proj
 
 | Unit | IP | Sensors |
 |---|---|---|
-| heating-controller-1 (off since 2026-10-15) | 192.168.11.248 | `370000001287ce28`, `5900000008f0a828`, `9b00000009029f28` (outdoor) |
-| sensors-controller-2 | 192.168.11.249 | `2800000008efc028`, `7100000008ece828`, `39000000150fc228`, `b700000014e83928`, `77041469f284ff28`, `a60416586fb5ff28`, `f10316555c4bff28` |
+| heating-controller-1 (off since 2026-10-15) | {hc1-ip} | `370000001287ce28`, `5900000008f0a828`, `9b00000009029f28` (outdoor) |
+| sensors-controller-2 | {sc2-ip} | `2800000008efc028`, `7100000008ece828`, `39000000150fc228`, `b700000014e83928`, `77041469f284ff28`, `a60416586fb5ff28`, `f10316555c4bff28` |
 
 ## Known-good image
 

@@ -1,7 +1,7 @@
 # hc-data backend (sensors-controller)
 
 Local replacement for the former GCP backend (Cloud Function + BigQuery). Runs on the Proxmox CT
-`hc-data` (192.168.11.16, Debian 13). Renamed from heating-controller on 2026-10-19: database `heating` → `sensors`,
+`hc-data` ({hc-data}, Debian 13). Renamed from heating-controller on 2026-10-19: database `heating` → `sensors`,
 topics `heating/…` → `sensors/…`, `hc-*` services and roles → `sc-*`.
 
 ```
@@ -22,7 +22,7 @@ server/deploy.sh                                   # copies server/ to /opt/sc-s
 otherwise: every controller shares both.
 
 `MQTT_DEVICE_PASS` must equal `MQTT_PASS` in `firmware/main/config/credentials.h`.
-`PG_READ_PASS` is the password of the read-only `sc_read` role (e.g. DataGrip: `192.168.11.16:5432/sensors`).
+`PG_READ_PASS` is the password of the read-only `sc_read` role (e.g. DataGrip: `{hc-data}:5432/sensors`).
 
 ## Files
 
@@ -38,7 +38,7 @@ otherwise: every controller shares both.
 ## Operations
 
 ```sh
-ssh root@192.168.11.16 journalctl -u sc-ingest -f
-ssh root@192.168.11.16 'runuser -u postgres -- psql sensors -c "select * from temperature_last1h"'
-ssh root@192.168.11.16 'mosquitto_sub -u sc-ingest -P … -t "sensors/#" -v'
+ssh root@{hc-data} journalctl -u sc-ingest -f
+ssh root@{hc-data} 'runuser -u postgres -- psql sensors -c "select * from temperature_last1h"'
+ssh root@{hc-data} 'mosquitto_sub -u sc-ingest -P … -t "sensors/#" -v'
 ```
